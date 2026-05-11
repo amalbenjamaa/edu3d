@@ -7,12 +7,13 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
+use Laravel\Sanctum\HasApiTokens;
 // Laravel Sanctum is optional; remove HasApiTokens import if package isn't installed
 
 class User extends Authenticatable
 {
-    use HasFactory, Notifiable;
 
+ use HasApiTokens, HasFactory, Notifiable;
     protected $fillable = [
         'name',
         'email',
