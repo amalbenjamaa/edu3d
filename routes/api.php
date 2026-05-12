@@ -1,46 +1,52 @@
 <?php
 
 use App\Http\Controllers\Api\AuthController;
-use App\Http\Controllers\Api\CourseController;
 use App\Http\Controllers\Api\ClassroomController;
-use App\Http\Controllers\Api\SlideController;
+use App\Http\Controllers\Api\CourseController;
 use App\Http\Controllers\Api\EnrollmentController;
+use App\Http\Controllers\Api\SlideController;
 use Illuminate\Support\Facades\Route;
 
-// ─── Routes publiques (sans authentification) ─────────────────────────────────
-
+// ─── Routes publiques ─────────────────────────────────────────────────────────
 Route::post('/register', [AuthController::class, 'register']);
 Route::post('/login',    [AuthController::class, 'login']);
 
-// ─── Routes protégées (token Sanctum requis) ──────────────────────────────────
-
+// ─── Routes protégées ─────────────────────────────────────────────────────────
 Route::middleware('auth:sanctum')->group(function () {
 
-    // Profil de l'utilisateur connecté (tous les rôles)
-    Route::get('/me',  [AuthController::class, 'me']);
-    Route::put('/me',  [AuthController::class, 'updateProfile']);
+    // Auth
+    Route::get('/me',      [AuthController::class, 'me']);
+    Route::put('/me',      [AuthController::class, 'updateProfile']);
     Route::post('/logout', [AuthController::class, 'logout']);
 
-    // ── Admin uniquement ──────────────────────────────────────────────────
+    // ── Admin ─────────────────────────────────────────────────────────────
     Route::middleware('role:admin')->prefix('admin')->group(function () {
-        Route::get('/users', fn() => \App\Models\User::all());
-        // → à remplacer par un UserController complet à l'étape suivante
+        Route::get('/users',         fn() => \App\Models\User::all());
+        Route::put('/users/{user}',  fn(\App\Models\User $user, \Illuminate\Http\Request $req) =>
+            $user->update($req->only('role', 'name')) ? response()->json(['user' => $user]) : abort(500)
+        );
+        Route::delete('/users/{user}', fn(\App\Models\User $user) =>
+            $user->delete($user->id) ? response()->json(['message' => 'Utilisateur supprimé.']) : abort(500)
+        );
     });
 
-    // ── Enseignant uniquement ─────────────────────────────────────────────
+    // ── Enseignant + Admin ────────────────────────────────────────────────
     Route::middleware('role:teacher,admin')->group(function () {
-        Route::apiResource('courses',    \App\Http\Controllers\Api\CourseController::class);
-        Route::apiResource('classrooms', \App\Http\Controllers\Api\ClassroomController::class);
-        Route::apiResource('slides',     \App\Http\Controllers\Api\SlideController::class);
-        Route::post('slides/reorder',    [\App\Http\Controllers\Api\SlideController::class, 'reorder']);
+        Route::apiResource('courses',    CourseController::class);
+        Route::apiResource('classrooms', ClassroomController::class);
+        Route::apiResource('slides',     SlideController::class);
+        Route::post('slides/reorder',    [SlideController::class, 'reorder']);
     });
 
-    // ── Étudiant + Enseignant + Admin ─────────────────────────────────────
+    // ── Tous les rôles authentifiés ───────────────────────────────────────
     Route::middleware('role:student,teacher,admin')->group(function () {
-        Route::get('courses/{course}/classrooms', [\App\Http\Controllers\Api\ClassroomController::class, 'byCourse']);
-        Route::get('classrooms/{classroom}/slides', [\App\Http\Controllers\Api\SlideController::class, 'byClassroom']);
-        Route::apiResource('enrollments', \App\Http\Controllers\Api\EnrollmentController::class)
+        // Slides d'une classe (étudiant inscrit peut consulter)
+        Route::get('classrooms/{classroom}/slides', [SlideController::class,    'byClassroom']);
+        // Classes d'un cours
+        Route::get('courses/{course}/classrooms',   [ClassroomController::class, 'byCourse']);
+        // Inscriptions
+        Route::apiResource('enrollments', EnrollmentController::class)
              ->only(['index', 'store', 'show']);
-        Route::put('enrollments/{enrollment}/progress', [\App\Http\Controllers\Api\EnrollmentController::class, 'updateProgress']);
+        Route::put('enrollments/{enrollment}/progress', [EnrollmentController::class, 'updateProgress']);
     });
 });
