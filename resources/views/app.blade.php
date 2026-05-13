@@ -1,13 +1,13 @@
 <!DOCTYPE html>
 <html lang="fr">
-<head>
+  <head>
     <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Edu3D</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title inertia>edu3d</title>
     @vite(['resources/css/app.css', 'resources/js/app.js'])
     @inertiaHead
-</head>
-<body>
+  </head>
+  <body class="antialiased">
     @inertia
-</body>
+  </body>
 </html>
