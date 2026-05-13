@@ -15,7 +15,7 @@
 				<button class="nav-item">Mon profil</button>
 			</nav>
 
-			<Link href="/api/logout" method="post" as="button" class="logout-btn">Déconnexion</Link>
+			<Link :href="route('logout')" method="post" as="button" class="logout-btn">Déconnexion</Link>
 		</aside>
 
 		<main class="main">

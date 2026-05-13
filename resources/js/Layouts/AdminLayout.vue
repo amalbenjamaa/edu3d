@@ -31,10 +31,7 @@
             <p class="text-xs text-gray-400 truncate">{{ auth.user?.email }}</p>
           </div>
         </div>
-        <button @click="auth.logout()"
-          class="w-full text-left text-xs text-gray-400 hover:text-red-400 transition-colors px-2 py-1.5 rounded hover:bg-red-500/10">
-          ← Déconnexion
-        </button>
+       <button @click="auth.logout()">Déconnexion</button>
       </div>
     </aside>
 

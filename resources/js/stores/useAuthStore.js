@@ -2,6 +2,7 @@ import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import { router } from '@inertiajs/vue3'
 
+
 export const useAuthStore = defineStore('auth', () => {
 
     // ─── État ─────────────────────────────────────────────────────────────────
@@ -64,19 +65,13 @@ export const useAuthStore = defineStore('auth', () => {
         redirectByRole()
     }
 
-    async function logout() {
-        if (token.value) {
-            await fetch('/api/logout', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${token.value}`,
-                },
-            })
-        }
-        user.value = null
-        clearToken()
-        router.visit('/login')
+    function logout() {
+        router.post('/logout', {}, {
+            onFinish: () => {
+                user.value = null
+                clearToken()
+            },
+        })
     }
 
     async function fetchMe() {

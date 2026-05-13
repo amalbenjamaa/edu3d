@@ -2,6 +2,8 @@
 
 namespace App\Providers;
 
+use Illuminate\Auth\Middleware\RedirectIfAuthenticated;
+use Illuminate\Http\Request;
 use App\Models\Classroom;
 use App\Models\Course;
 use App\Models\Enrollment;
@@ -19,6 +21,20 @@ class AppServiceProvider extends ServiceProvider
 
     public function boot(): void
     {
+        RedirectIfAuthenticated::redirectUsing(function (Request $request) {
+            $user = $request->user();
+            if (! $user) {
+                return '/';
+            }
+
+            return match ($user->role) {
+                'admin' => route('admin.dashboard'),
+                'teacher' => route('teacher.dashboard'),
+                'student' => route('student.dashboard'),
+                default => route('login'),
+            };
+        });
+
         $this->defineGates();
     }
 
