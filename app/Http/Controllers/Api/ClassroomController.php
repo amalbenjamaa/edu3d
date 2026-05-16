@@ -16,22 +16,33 @@ class ClassroomController extends Controller
     // GET /api/classrooms
     public function index(Request $request): AnonymousResourceCollection
     {
-        $classrooms = $request->user()->isTeacher()
-            ? Classroom::with('course')
-                       ->whereHas('course', fn($q) => $q->forTeacher($request->user()->id))
-                       ->latest()
-                       ->get()
-            : Classroom::with('course')
-                       ->whereHas('enrollments', fn($q) => $q->where('user_id', $request->user()->id))
-                       ->latest()
-                       ->get();
+        $user = $request->user();
+
+        $classrooms = match (true) {
+            $user->isAdmin() => Classroom::with('course')
+                ->withCount(['slides', 'enrollments'])
+                ->latest()
+                ->get(),
+            $user->isTeacher() => Classroom::with('course')
+                ->withCount(['slides', 'enrollments'])
+                ->whereHas('course', fn ($q) => $q->forTeacher($user->id))
+                ->latest()
+                ->get(),
+            default => Classroom::with('course')
+                ->withCount('slides')
+                ->whereHas('enrollments', fn ($q) => $q->where('user_id', $user->id))
+                ->latest()
+                ->get(),
+        };
 
         return ClassroomResource::collection($classrooms);
     }
 
     // GET /api/courses/{course}/classrooms  (liste par cours)
-    public function byCourse(Course $course): AnonymousResourceCollection
+    public function byCourse(Request $request, Course $course): AnonymousResourceCollection
     {
+        Gate::authorize('view-course', $course);
+
         $classrooms = $course->classrooms()
                              ->with('slides')
                              ->active()
@@ -67,7 +78,7 @@ class ClassroomController extends Controller
     // GET /api/classrooms/{classroom}
     public function show(Request $request, Classroom $classroom): JsonResponse
     {
-        Gate::authorize('manage-classroom', $classroom);
+        Gate::authorize('view-classroom', $classroom);
 
         $classroom->load('course', 'slides', 'enrollments.student');
 
@@ -82,6 +93,7 @@ class ClassroomController extends Controller
         Gate::authorize('manage-classroom', $classroom);
 
         $data = $request->validate([
+            'course_id'   => ['sometimes', 'exists:courses,id'],
             'name'        => ['sometimes', 'string', 'max:255'],
             'description' => ['nullable', 'string'],
             'capacity'    => ['sometimes', 'integer', 'min:1', 'max:500'],
@@ -89,6 +101,11 @@ class ClassroomController extends Controller
             'end_date'    => ['nullable', 'date', 'after_or_equal:start_date'],
             'is_active'   => ['sometimes', 'boolean'],
         ]);
+
+        if (isset($data['course_id'])) {
+            $course = Course::findOrFail($data['course_id']);
+            Gate::authorize('create-classroom', $course);
+        }
 
         $classroom->update($data);
 

@@ -30,23 +30,35 @@ Route::middleware('auth:sanctum')->group(function () {
         );
     });
 
-    // ── Enseignant + Admin ────────────────────────────────────────────────
-    Route::middleware('role:teacher,admin')->group(function () {
-        Route::apiResource('courses',    CourseController::class);
-        Route::apiResource('classrooms', ClassroomController::class);
-        Route::apiResource('slides',     SlideController::class);
-        Route::post('slides/reorder',    [SlideController::class, 'reorder']);
-    });
-
-    // ── Tous les rôles authentifiés ───────────────────────────────────────
+    // ── Lecture : tous les rôles authentifiés (gates dans les contrôleurs) ─
     Route::middleware('role:student,teacher,admin')->group(function () {
-        // Slides d'une classe (étudiant inscrit peut consulter)
-        Route::get('classrooms/{classroom}/slides', [SlideController::class,    'byClassroom']);
-        // Classes d'un cours
-        Route::get('courses/{course}/classrooms',   [ClassroomController::class, 'byCourse']);
-        // Inscriptions
+        Route::get('courses',    [CourseController::class,    'index']);
+        Route::get('courses/{course}', [CourseController::class, 'show']);
+        Route::get('classrooms', [ClassroomController::class, 'index']);
+        Route::get('classrooms/{classroom}', [ClassroomController::class, 'show']);
+        Route::get('classrooms/{classroom}/slides', [SlideController::class, 'byClassroom']);
+        Route::get('courses/{course}/classrooms', [ClassroomController::class, 'byCourse']);
+        Route::get('slides/{slide}', [SlideController::class, 'show']);
+
         Route::apiResource('enrollments', EnrollmentController::class)
              ->only(['index', 'store', 'show']);
         Route::put('enrollments/{enrollment}/progress', [EnrollmentController::class, 'updateProgress']);
+    });
+
+    // ── Écriture : enseignant + admin ─────────────────────────────────────
+    Route::middleware('role:teacher,admin')->group(function () {
+        Route::post('courses',    [CourseController::class,    'store']);
+        Route::put('courses/{course}', [CourseController::class, 'update']);
+        Route::delete('courses/{course}', [CourseController::class, 'destroy']);
+
+        Route::post('classrooms', [ClassroomController::class, 'store']);
+        Route::put('classrooms/{classroom}', [ClassroomController::class, 'update']);
+        Route::delete('classrooms/{classroom}', [ClassroomController::class, 'destroy']);
+
+        Route::get('slides', [SlideController::class, 'index']);
+        Route::post('slides', [SlideController::class, 'store']);
+        Route::put('slides/{slide}', [SlideController::class, 'update']);
+        Route::delete('slides/{slide}', [SlideController::class, 'destroy']);
+        Route::post('slides/reorder', [SlideController::class, 'reorder']);
     });
 });

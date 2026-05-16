@@ -18,20 +18,24 @@ class CheckRole
      */
     public function handle(Request $request, Closure $next, string ...$roles): Response
     {
-        // L'utilisateur doit être authentifié
+        $wantsJson = $request->expectsJson() || $request->is('api/*');
+
         if (! $request->user()) {
-            return response()->json([
-                'message' => 'Non authentifié.',
-            ], 401);
+            if ($wantsJson) {
+                return response()->json(['message' => 'Non authentifié.'], 401);
+            }
+
+            return redirect()->guest(route('login'));
         }
 
-        // Vérifier si le rôle de l'utilisateur est dans la liste des rôles autorisés
-        if (! in_array($request->user()->role, $roles)) {
-            return response()->json([
-                'message' => 'Accès refusé. Vous n\'avez pas les droits nécessaires.',
-                'your_role'     => $request->user()->role,
-                'required_roles' => $roles,
-            ], 403);
+        if (! in_array($request->user()->role, $roles, true)) {
+            if ($wantsJson) {
+                return response()->json([
+                    'message' => 'Accès refusé. Vous n\'avez pas les droits nécessaires.',
+                ], 403);
+            }
+
+            return redirect()->route('login');
         }
 
         return $next($request);

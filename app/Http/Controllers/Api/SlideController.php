@@ -17,11 +17,13 @@ class SlideController extends Controller
     // GET /api/slides
     public function index(Request $request): AnonymousResourceCollection
     {
-        $slides = Slide::with('classroom.course')
-            ->whereHas('classroom.course', fn($q) => $q->forTeacher($request->user()->id))
-            ->orderBy('classroom_id')
-            ->orderBy('order')
-            ->get();
+        $query = Slide::with('classroom.course')->orderBy('classroom_id')->orderBy('order');
+
+        if ($request->user()->isTeacher()) {
+            $query->whereHas('classroom.course', fn ($q) => $q->forTeacher($request->user()->id));
+        }
+
+        $slides = $query->get();
 
         return SlideResource::collection($slides);
     }
@@ -29,9 +31,10 @@ class SlideController extends Controller
     // GET /api/classrooms/{classroom}/slides
     public function byClassroom(Request $request, Classroom $classroom): AnonymousResourceCollection
     {
-        Gate::authorize('view-slide', $classroom->slides()->first() ?? new Slide(['classroom_id' => $classroom->id]));
+        $classroom->load('course');
+        Gate::authorize('view-classroom', $classroom);
 
-        $slides = $classroom->slides()->get(); // déjà triées par order (scope du modèle)
+        $slides = $classroom->slides()->get();
 
         return SlideResource::collection($slides);
     }
@@ -43,22 +46,25 @@ class SlideController extends Controller
             'classroom_id' => ['required', 'exists:classrooms,id'],
             'title'        => ['required', 'string', 'max:255'],
             'type'         => ['required', 'in:text3d,shape3d,image3d,model3d,mixed'],
-            'content'      => ['required', 'array'],
-            'content.*.id'       => ['required', 'string'],
-            'content.*.type'     => ['required', 'in:text3d,box,sphere,plane,gltf,image'],
-            'content.*.position' => ['required', 'array', 'size:3'],
-            'content.*.rotation' => ['required', 'array', 'size:3'],
-            'content.*.scale'    => ['required', 'array', 'size:3'],
+            'content'      => ['nullable', 'array'],
+            'content.*.id'       => ['required_with:content', 'string'],
+            'content.*.type'     => ['required_with:content', 'in:text3d,box,sphere,plane,cylinder,torus,cone,gltf,image'],
+            'content.*.position' => ['required_with:content', 'array', 'size:3'],
+            'content.*.rotation' => ['required_with:content', 'array', 'size:3'],
+            'content.*.scale'    => ['required_with:content', 'array', 'size:3'],
             'content.*.color'    => ['nullable', 'string'],
             'camera'       => ['nullable', 'array'],
             'camera.position' => ['nullable', 'array', 'size:3'],
             'camera.target'   => ['nullable', 'array', 'size:3'],
             'camera.fov'      => ['nullable', 'numeric'],
-            'duration'     => ['integer', 'min:0'],
+            'duration'     => ['nullable', 'integer', 'min:0'],
         ]);
 
         $classroom = Classroom::findOrFail($data['classroom_id']);
         Gate::authorize('create-slide', $classroom);
+
+        $data['content']  = $data['content'] ?? [];
+        $data['duration'] = $data['duration'] ?? 0;
 
         // Calculer l'ordre automatiquement (dernière slide + 1)
         $lastOrder = $classroom->slides()->max('order') ?? 0;
@@ -93,7 +99,16 @@ class SlideController extends Controller
             'title'    => ['sometimes', 'string', 'max:255'],
             'type'     => ['sometimes', 'in:text3d,shape3d,image3d,model3d,mixed'],
             'content'  => ['sometimes', 'array'],
+            'content.*.id'       => ['required_with:content', 'string'],
+            'content.*.type'     => ['required_with:content', 'in:text3d,box,sphere,plane,cylinder,torus,cone,gltf,image'],
+            'content.*.position' => ['required_with:content', 'array', 'size:3'],
+            'content.*.rotation' => ['required_with:content', 'array', 'size:3'],
+            'content.*.scale'    => ['required_with:content', 'array', 'size:3'],
+            'content.*.color'    => ['nullable', 'string'],
             'camera'   => ['nullable', 'array'],
+            'camera.position' => ['nullable', 'array', 'size:3'],
+            'camera.target'   => ['nullable', 'array', 'size:3'],
+            'camera.fov'      => ['nullable', 'numeric'],
             'duration' => ['sometimes', 'integer', 'min:0'],
         ]);
 
@@ -114,7 +129,7 @@ class SlideController extends Controller
         Slide::query()->whereKey($slide->id)->delete();
 
         // Recalculer les ordres après suppression
-        Slide::where('classroom_id', '=', $classroomId, 'and')
+        Slide::where('classroom_id', $classroomId)
              ->orderBy('order')
              ->get()
              ->each(fn($s, $i) => $s->update(['order' => $i + 1]));
@@ -139,7 +154,8 @@ class SlideController extends Controller
 
         DB::transaction(function () use ($data) {
             foreach ($data['slides'] as $item) {
-                Slide::where('id', '=', $item['id'], 'and')
+                Slide::where('id', $item['id'])
+                     ->where('classroom_id', $data['classroom_id'])
                      ->update(['order' => $item['order']]);
             }
         });
@@ -147,7 +163,7 @@ class SlideController extends Controller
         return response()->json([
             'message' => 'Ordre des slides mis à jour.',
             'slides'  => SlideResource::collection(
-                $classroom->slides()->get()
+                Slide::where('classroom_id', $classroom->id)->orderBy('order')->get()
             ),
         ]);
     }

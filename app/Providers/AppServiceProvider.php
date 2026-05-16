@@ -81,25 +81,51 @@ class AppServiceProvider extends ServiceProvider
 
         // Modifier/supprimer une classe : enseignant propriétaire du cours parent
         Gate::define('manage-classroom', function (User $user, Classroom $classroom) {
+            $classroom->loadMissing('course');
+
             return $user->isTeacher() && $user->id === $classroom->course->teacher_id;
+        });
+
+        Gate::define('view-classroom', function (User $user, Classroom $classroom) {
+            $classroom->loadMissing('course');
+
+            if ($user->isTeacher()) {
+                return $user->id === $classroom->course->teacher_id;
+            }
+
+            if ($user->isStudent()) {
+                return Enrollment::query()
+                    ->where('user_id', $user->id)
+                    ->where('classroom_id', $classroom->id)
+                    ->whereIn('status', ['pending', 'active', 'completed'])
+                    ->exists();
+            }
+
+            return false;
         });
 
         // ── Slides ────────────────────────────────────────────────────────
 
         // Créer/modifier/supprimer une slide : enseignant propriétaire de la classe
         Gate::define('manage-slide', function (User $user, Slide $slide) {
+            $slide->loadMissing('classroom.course');
+
             return $user->isTeacher()
                 && $user->id === $slide->classroom->course->teacher_id;
         });
 
         // Créer une slide dans une classe : enseignant propriétaire
         Gate::define('create-slide', function (User $user, Classroom $classroom) {
+            $classroom->loadMissing('course');
+
             return $user->isTeacher()
                 && $user->id === $classroom->course->teacher_id;
         });
 
         // Voir les slides : étudiant inscrit à la classe OU enseignant propriétaire
         Gate::define('view-slide', function (User $user, Slide $slide) {
+            $slide->loadMissing('classroom.course');
+
             if ($user->isTeacher()) {
                 return $user->id === $slide->classroom->course->teacher_id;
             }
@@ -108,7 +134,7 @@ class AppServiceProvider extends ServiceProvider
                 return Enrollment::query()
                     ->where('user_id', $user->id)
                     ->where('classroom_id', $slide->classroom_id)
-                    ->whereIn('status', ['active', 'completed'])
+                    ->whereIn('status', ['pending', 'active', 'completed'])
                     ->exists();
             }
 

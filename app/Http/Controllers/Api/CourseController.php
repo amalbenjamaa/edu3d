@@ -15,15 +15,19 @@ class CourseController extends Controller
     // GET /api/courses
     public function index(Request $request): AnonymousResourceCollection
     {
-        $courses = $request->user()->isTeacher()
-            ? Course::with('classrooms')
-                    ->forTeacher($request->user()->id)
-                    ->latest()
-                    ->get()
-            : Course::with('teacher', 'classrooms')
-                    ->published()
-                    ->latest()
-                    ->get();
+        $user = $request->user();
+
+        $courses = match (true) {
+            $user->isAdmin() => Course::with(['classrooms', 'teacher'])->latest()->get(),
+            $user->isTeacher() => Course::with('classrooms')
+                ->forTeacher($user->id)
+                ->latest()
+                ->get(),
+            default => Course::with('teacher', 'classrooms')
+                ->published()
+                ->latest()
+                ->get(),
+        };
 
         return CourseResource::collection($courses);
     }
@@ -37,12 +41,13 @@ class CourseController extends Controller
             'title'        => ['required', 'string', 'max:255'],
             'description'  => ['nullable', 'string'],
             'level'        => ['required', 'in:beginner,intermediate,advanced'],
-            'is_published' => ['boolean'],
+            'is_published' => ['sometimes', 'boolean'],
         ]);
 
         $course = Course::create([
             ...$data,
-            'teacher_id' => $request->user()->id,
+            'is_published' => $data['is_published'] ?? false,
+            'teacher_id'   => $request->user()->id,
         ]);
 
         return response()->json([

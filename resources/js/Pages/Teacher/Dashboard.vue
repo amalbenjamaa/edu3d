@@ -142,7 +142,7 @@
                     <div class="class-mini-icon">🏛️</div>
                     <div>
                       <div class="class-mini-name">{{ cls.name }}</div>
-                      <div class="class-mini-code">Code : <strong>{{ cls.invite_code }}</strong></div>
+                      <div class="class-mini-code">Capacité : <strong>{{ cls.capacity }}</strong></div>
                     </div>
                   </div>
                 </div>
@@ -191,13 +191,13 @@
           <div class="table-wrap">
             <table class="data-table">
               <thead>
-                <tr><th>Classe</th><th>Cours associé</th><th>Code d'invitation</th><th>Actions</th></tr>
+                <tr><th>Classe</th><th>Cours associé</th><th>Capacité</th><th>Actions</th></tr>
               </thead>
               <tbody>
                 <tr v-for="cls in filteredClassrooms" :key="cls.id">
                   <td><div class="user-cell"><span class="class-dot">🏛️</span> {{ cls.name }}</div></td>
                   <td class="text-muted">{{ cls.course?.title || '—' }}</td>
-                  <td><span class="code-badge">{{ cls.invite_code }}</span></td>
+                  <td><span class="code-badge">{{ cls.capacity }} places</span></td>
                   <td>
                     <div class="action-btns">
                       <button class="icon-btn edit"   @click="openClassroomModal('edit', cls)" title="Modifier">✏️</button>
@@ -235,6 +235,20 @@
           <div class="modal-body">
             <div class="field"><label>Titre</label><input v-model="courseModal.form.title" placeholder="Titre du cours"/></div>
             <div class="field"><label>Description</label><textarea v-model="courseModal.form.description" placeholder="Description du cours" rows="3"></textarea></div>
+            <div class="field">
+              <label>Niveau</label>
+              <select v-model="courseModal.form.level">
+                <option value="beginner">Débutant</option>
+                <option value="intermediate">Intermédiaire</option>
+                <option value="advanced">Avancé</option>
+              </select>
+            </div>
+            <div class="field checkbox-field">
+              <label>
+                <input type="checkbox" v-model="courseModal.form.is_published"/>
+                Publier le cours (visible aux étudiants)
+              </label>
+            </div>
           </div>
           <div class="modal-footer">
             <button class="btn-cancel" @click="courseModal.show = false">Annuler</button>
@@ -260,6 +274,10 @@
                 <option value="">— Sélectionner un cours —</option>
                 <option v-for="c in courses" :key="c.id" :value="c.id">{{ c.title }}</option>
               </select>
+            </div>
+            <div class="field">
+              <label>Capacité</label>
+              <input type="number" v-model.number="classroomModal.form.capacity" min="1" max="500" class="editor-input"/>
             </div>
           </div>
           <div class="modal-footer">
@@ -317,8 +335,8 @@ const isSaving          = ref(false)
 const courses           = ref([])
 const classrooms        = ref([])
 const toast             = ref({ show: false, msg: '', type: 'success' })
-const courseModal       = ref({ show: false, mode: 'create', form: { title: '', description: '' }, editId: null })
-const classroomModal    = ref({ show: false, mode: 'create', form: { name: '', course_id: '' }, editId: null })
+const courseModal       = ref({ show: false, mode: 'create', form: { title: '', description: '', level: 'beginner', is_published: false }, editId: null })
+const classroomModal    = ref({ show: false, mode: 'create', form: { name: '', course_id: '', capacity: 30 }, editId: null })
 const deleteModal       = ref({ show: false, item: null, type: '' })
 
 // ── Icons ─────────────────────────────────────────────────────────────────────
@@ -332,7 +350,7 @@ const contentNav = [{ id: 'courses', label: 'Mes cours', icon: svgBook }, { id: 
 
 // ── Computed ──────────────────────────────────────────────────────────────────
 const userInitial  = computed(() => props.auth?.user?.name?.charAt(0)?.toUpperCase() || 'E')
-const totalStudents = computed(() => classrooms.value.reduce((acc, c) => acc + (c.students_count || 0), 0))
+const totalStudents = computed(() => classrooms.value.reduce((acc, c) => acc + (c.enrollments_count || 0), 0))
 
 const currentPageTitle = computed(() => ({
   overview: 'Vue globale', courses: 'Mes Cours', classrooms: 'Mes Classes', profile: 'Mon Profil'
@@ -380,7 +398,15 @@ async function loadClassrooms() {
 }
 
 function openCourseModal(mode, course = null) {
-  courseModal.value = { show: true, mode, editId: course?.id || null, form: { title: course?.title || '', description: course?.description || '' } }
+  courseModal.value = {
+    show: true, mode, editId: course?.id || null,
+    form: {
+      title: course?.title || '',
+      description: course?.description || '',
+      level: course?.level || 'beginner',
+      is_published: course?.is_published ?? false,
+    },
+  }
 }
 
 async function saveCourse() {
@@ -396,15 +422,26 @@ async function saveCourse() {
     }
     courseModal.value.show = false
     await loadCourses()
-  } catch { showToast('Une erreur est survenue', 'error') } finally { isSaving.value = false }
+  } catch (e) {
+    const msg = e?.response?.data?.message || Object.values(e?.response?.data?.errors || {})[0]?.[0] || 'Une erreur est survenue'
+    showToast(msg, 'error')
+  } finally { isSaving.value = false }
 }
 
 function openClassroomModal(mode, cls = null) {
-  classroomModal.value = { show: true, mode, editId: cls?.id || null, form: { name: cls?.name || '', course_id: cls?.course_id || '' } }
+  classroomModal.value = {
+    show: true, mode, editId: cls?.id || null,
+    form: {
+      name: cls?.name || '',
+      course_id: cls?.course_id || cls?.course?.id || '',
+      capacity: cls?.capacity ?? 30,
+    },
+  }
 }
 
 async function saveClassroom() {
   if (!classroomModal.value.form.name) { showToast('Nom requis', 'error'); return }
+  if (!classroomModal.value.form.course_id) { showToast('Cours requis', 'error'); return }
   isSaving.value = true
   try {
     if (classroomModal.value.mode === 'create') {
@@ -416,7 +453,10 @@ async function saveClassroom() {
     }
     classroomModal.value.show = false
     await loadClassrooms()
-  } catch { showToast('Une erreur est survenue', 'error') } finally { isSaving.value = false }
+  } catch (e) {
+    const msg = e?.response?.data?.message || Object.values(e?.response?.data?.errors || {})[0]?.[0] || 'Une erreur est survenue'
+    showToast(msg, 'error')
+  } finally { isSaving.value = false }
 }
 
 function confirmDeleteCourse(course) { deleteModal.value = { show: true, item: course, type: 'course' } }

@@ -83,7 +83,7 @@ import { ref, onMounted } from 'vue'
 import { router } from '@inertiajs/vue3'
 import StudentLayout from '@/Layouts/StudentLayout.vue'
 import ThreeScene from '@/Components/ThreeScene.vue'
-import MiniScene from '@/Components/MiniScene.vue'
+import MiniScene from '@/Components/three/MiniScene.vue'
 import axios from 'axios'
 
 const props = defineProps({
@@ -124,9 +124,9 @@ async function loadData() {
 }
 
 function openViewer(index) {
-  viewerIndex.value = index
-  viewerOpen.value  = true
-  document.body.style.overflow = 'hidden'
+  const slide = slides.value[index]
+  if (!slide) return
+  router.visit(`/student/classrooms/${props.classroomId}/slides/${slide.id}`)
 }
 
 function closeViewer() {
