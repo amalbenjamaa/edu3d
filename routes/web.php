@@ -34,6 +34,9 @@ Route::middleware(['auth:sanctum', 'role:teacher,admin'])->prefix('teacher')->gr
     Route::get('/courses/{id}', fn ($id) => Inertia::render('Teacher/CourseDetail', ['courseId' => $id]))->name('teacher.courses.show');
     Route::get('/classrooms', fn () => Inertia::render('Teacher/Classrooms'))->name('teacher.classrooms');
     Route::get('/classrooms/{id}', fn ($id) => Inertia::render('Teacher/ClassroomDetail', ['classroomId' => $id]))->name('teacher.classrooms.show');
+    Route::get('/classrooms/{classroomId}/slides/edit', fn ($classroomId) => Inertia::render('Teacher/ClassroomSlideEditor', [
+        'classroomId' => $classroomId,
+    ]))->name('teacher.classrooms.slides.edit');
     Route::get('/slides', fn () => Inertia::render('Teacher/Slides'))->name('teacher.slides');
     Route::get('/students', fn () => Inertia::render('Teacher/Students'))->name('teacher.students');
 });

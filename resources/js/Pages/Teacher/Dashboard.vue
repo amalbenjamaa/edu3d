@@ -40,6 +40,7 @@
           @click="activeView = item.id" :title="item.label">
           <span class="nav-icon" v-html="item.icon"></span>
           <span class="nav-label" v-if="!sidebarCollapsed">{{ item.label }}</span>
+          <span v-if="!sidebarCollapsed && item.badge" class="nav-badge">{{ item.badge }}</span>
         </button>
       </nav>
 
@@ -167,8 +168,9 @@
               <div class="course-card-header">
                 <div class="course-card-icon">📚</div>
                 <div class="course-card-actions">
-                  <button class="icon-btn edit"   @click="openCourseModal('edit', c)" title="Modifier">✏️</button>
-                  <button class="icon-btn delete" @click="confirmDeleteCourse(c)"    title="Supprimer">🗑️</button>
+                  <button class="icon-btn edit" @click.stop="openSlides(c)" title="Slides 3D">🎞️</button>
+                  <button class="icon-btn edit"   @click.stop="openCourseModal('edit', c)" title="Modifier">✏️</button>
+                  <button class="icon-btn delete" @click.stop="confirmDeleteCourse(c)" title="Supprimer">🗑️</button>
                 </div>
               </div>
               <h4 class="course-card-title">{{ c.title }}</h4>
@@ -209,6 +211,40 @@
             </table>
             <div class="empty-state" v-if="!filteredClassrooms.length">Aucune classe trouvée.</div>
           </div>
+        </div>
+
+        <!-- ── SLIDES 3D ── -->
+        <div v-else-if="activeView === 'slides'" key="slides" class="view view-full">
+          <div class="table-toolbar">
+            <div class="view-title-row">
+              <h2 class="section-heading">🗂️ Gestionnaire de Slides 3D</h2>
+              <p class="section-sub">Sélectionnez un cours pour gérer ses slides</p>
+            </div>
+          </div>
+
+          <div class="course-picker">
+            <div
+              v-for="course in myCourses"
+              :key="course.id"
+              :class="['picker-card', { active: slideEditorCourse?.id === course.id }]"
+              @click="openSlideEditor(course)"
+            >
+              <div class="picker-icon">📚</div>
+              <div class="picker-info">
+                <div class="picker-title">{{ course.title }}</div>
+                <div class="picker-count">{{ course.slideCount || 0 }} slides</div>
+              </div>
+              <div class="picker-arrow">→</div>
+            </div>
+            <div class="empty-state" v-if="!myCourses.length">
+              Aucun cours — créez d'abord un cours
+            </div>
+          </div>
+        </div>
+
+        <!-- ── CHAT ── -->
+        <div v-else-if="activeView === 'chat'" key="chat" class="view view-full view-chat">
+          <ChatView :is-teacher="true" />
         </div>
 
         <!-- ── PROFILE ── -->
@@ -307,6 +343,13 @@
       </div>
     </transition>
 
+    <SlideEditor
+      :show="slideEditorOpen"
+      :course="slideEditorCourse"
+      @close="slideEditorOpen = false"
+      @updated="onSlidesUpdated"
+    />
+
     <!-- Toast -->
     <transition name="toast">
       <div class="toast-global" v-if="toast.show" :class="toast.type">
@@ -320,6 +363,8 @@
 import { ref, computed, onMounted } from 'vue'
 import { Link } from '@inertiajs/vue3'
 import axios from 'axios'
+import SlideEditor from './SlideEditor.vue'
+import ChatView from './ChatView.vue'
 
 const props = defineProps({
   auth: Object,  // { user: { id, name, email, role } }
@@ -338,22 +383,45 @@ const toast             = ref({ show: false, msg: '', type: 'success' })
 const courseModal       = ref({ show: false, mode: 'create', form: { title: '', description: '', level: 'beginner', is_published: false }, editId: null })
 const classroomModal    = ref({ show: false, mode: 'create', form: { name: '', course_id: '', capacity: 30 }, editId: null })
 const deleteModal       = ref({ show: false, item: null, type: '' })
+const slideEditorOpen   = ref(false)
+const slideEditorCourse = ref(null)
+const unreadCount       = ref(0)
+const slideCounts       = ref({})
 
 // ── Icons ─────────────────────────────────────────────────────────────────────
 const svgHome      = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9,22 9,12 15,12 15,22"/></svg>`
 const svgBook      = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>`
 const svgClass     = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18"><path d="M22 10v6M2 10l10-5 10 5-10 5z"/><path d="M6 12v5c3 3 9 3 12 0v-5"/></svg>`
 const svgProfile   = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>`
+const iChat        = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>`
+const iSlides      = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>`
 
-const mainNav    = [{ id: 'overview', label: 'Vue globale', icon: svgHome }, { id: 'profile', label: 'Mon Profil', icon: svgProfile }]
-const contentNav = [{ id: 'courses', label: 'Mes cours', icon: svgBook }, { id: 'classrooms', label: 'Mes classes', icon: svgClass }]
+const mainNav = [{ id: 'overview', label: 'Vue globale', icon: svgHome }, { id: 'profile', label: 'Mon Profil', icon: svgProfile }]
+const contentNav = computed(() => [
+  { id: 'courses', label: 'Mes cours', icon: svgBook },
+  { id: 'classrooms', label: 'Mes classes', icon: svgClass },
+  { id: 'slides', label: 'Slides 3D', icon: iSlides },
+  { id: 'chat', label: 'Messages', icon: iChat, badge: unreadCount.value || null },
+])
 
 // ── Computed ──────────────────────────────────────────────────────────────────
 const userInitial  = computed(() => props.auth?.user?.name?.charAt(0)?.toUpperCase() || 'E')
 const totalStudents = computed(() => classrooms.value.reduce((acc, c) => acc + (c.enrollments_count || 0), 0))
 
+const myCourses = computed(() =>
+  courses.value.map(c => ({
+    ...c,
+    slideCount: slideCounts.value[c.id] ?? 0,
+  }))
+)
+
 const currentPageTitle = computed(() => ({
-  overview: 'Vue globale', courses: 'Mes Cours', classrooms: 'Mes Classes', profile: 'Mon Profil'
+  overview: 'Vue globale',
+  courses: 'Mes Cours',
+  classrooms: 'Mes Classes',
+  slides: 'Slides 3D',
+  chat: 'Messages',
+  profile: 'Mon Profil',
 })[activeView.value])
 
 const statsCards = computed(() => [
@@ -381,6 +449,40 @@ function showToast(msg, type = 'success') {
 }
 
 function openCourseDetail(course) { activeView.value = 'courses' }
+
+function openSlideEditor(course) {
+  slideEditorCourse.value = course
+  slideEditorOpen.value = true
+}
+
+function openSlides(course) {
+  openSlideEditor(course)
+}
+
+async function refreshSlideCounts() {
+  const counts = {}
+  for (const course of courses.value) {
+    try {
+      const { data } = await axios.get(`/api/courses/${course.id}/classrooms`)
+      const list = data.data ?? data
+      let total = 0
+      for (const cls of list) {
+        const { data: slides } = await axios.get(`/api/classrooms/${cls.id}/slides`)
+        total += (slides.data ?? slides).length
+      }
+      counts[course.id] = total
+    } catch {
+      counts[course.id] = 0
+    }
+  }
+  slideCounts.value = counts
+}
+
+async function onSlidesUpdated() {
+  await loadCourses()
+  await loadClassrooms()
+  await refreshSlideCounts()
+}
 
 // ── API ───────────────────────────────────────────────────────────────────────
 async function loadCourses() {
@@ -478,9 +580,10 @@ async function doDelete() {
 // ── Clock ─────────────────────────────────────────────────────────────────────
 function tick() { currentTime.value = new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }) }
 
-onMounted(() => {
-  loadCourses()
-  loadClassrooms()
+onMounted(async () => {
+  await loadCourses()
+  await loadClassrooms()
+  await refreshSlideCounts()
   tick()
   setInterval(tick, 60000)
 })
@@ -512,6 +615,20 @@ onMounted(() => {
 .nav-item:hover { color: #fff; background: rgba(255,255,255,0.05); }
 .nav-item.active { color: #a78bfa; background: rgba(167,139,250,0.1); }
 .nav-icon { flex-shrink: 0; display: flex; align-items: center; }
+.nav-badge {
+  margin-left: auto;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 9px;
+  background: #a78bfa;
+  color: #050b18;
+  font-size: 0.65rem;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
 .sidebar-footer { padding: 1rem; border-top: 1px solid rgba(255,255,255,0.05); display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .teacher-info { display: flex; align-items: center; gap: 10px; overflow: hidden; }
 .teacher-avatar-sm { width: 32px; height: 32px; border-radius: 50%; background: #a78bfa; color: #050b18; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 0.8rem; flex-shrink: 0; }
@@ -530,6 +647,37 @@ onMounted(() => {
 .search-box input { background: none; border: none; color: #fff; font-family: 'DM Sans', sans-serif; font-size: 0.85rem; outline: none; width: 160px; }
 .topbar-time { font-size: 0.82rem; color: rgba(255,255,255,0.35); }
 .view { padding: 2rem; overflow-y: auto; flex: 1; animation: fadeUp 0.4s ease; }
+.view-full { padding: 0; overflow: hidden; height: calc(100vh - 58px); }
+.view-chat { display: flex; flex-direction: column; }
+
+.section-heading { font-family: 'Syne', sans-serif; font-size: 1.1rem; font-weight: 700; }
+.section-sub { font-size: 0.82rem; color: rgba(255,255,255,0.35); margin-top: 3px; }
+.view-title-row { padding: 1.5rem 2rem 0; }
+
+.course-picker {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 1rem;
+  padding: 1.5rem 2rem;
+  overflow-y: auto;
+}
+.picker-card {
+  display: flex; align-items: center; gap: 12px;
+  padding: 1rem 1.2rem;
+  background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.07);
+  border-radius: 14px; cursor: pointer; transition: all 0.25s;
+}
+.picker-card:hover {
+  transform: translateY(-2px);
+  border-color: rgba(167,139,250,0.3);
+  box-shadow: 0 6px 20px rgba(167,139,250,0.08);
+}
+.picker-card.active { border-color: #a78bfa; background: rgba(167,139,250,0.08); }
+.picker-icon { font-size: 1.6rem; flex-shrink: 0; }
+.picker-info { flex: 1; min-width: 0; }
+.picker-title { font-family: 'Syne', sans-serif; font-size: 0.9rem; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.picker-count { font-size: 0.72rem; color: rgba(255,255,255,0.35); margin-top: 2px; }
+.picker-arrow { color: rgba(167,139,250,0.5); font-size: 1rem; }
 
 /* Welcome banner */
 .welcome-banner { display: flex; align-items: center; justify-content: space-between; background: linear-gradient(135deg, rgba(167,139,250,0.08), rgba(167,139,250,0.03)); border: 1px solid rgba(167,139,250,0.15); border-radius: 20px; padding: 1.8rem 2rem; margin-bottom: 1.5rem; }
