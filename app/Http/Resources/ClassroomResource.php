@@ -16,6 +16,7 @@ class ClassroomResource extends JsonResource
             'description' => $this->description,
             'capacity'    => $this->capacity,
             'is_active'   => $this->is_active,
+            'invite_code' => $this->invite_code,
             'start_date'  => $this->start_date?->toDateString(),
             'end_date'    => $this->end_date?->toDateString(),
             'course'      => new CourseResource($this->whenLoaded('course')),

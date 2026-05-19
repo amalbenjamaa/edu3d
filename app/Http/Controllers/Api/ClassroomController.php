@@ -19,7 +19,7 @@ class ClassroomController extends Controller
         $user = $request->user();
 
         $classrooms = match (true) {
-            $user->isAdmin() => Classroom::with('course')
+            $user->isAdmin() => Classroom::with(['course.teacher', 'enrollments.student'])
                 ->withCount(['slides', 'enrollments'])
                 ->latest()
                 ->get(),

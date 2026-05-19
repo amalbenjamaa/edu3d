@@ -95,8 +95,9 @@
     <!-- Pas de slides -->
     <div class="empty-slideview" v-else-if="!loading">
       <div class="empty-icon">🎞️</div>
-      <h3>Aucune slide dans cette classe</h3>
-      <p>Le contenu 3D sera bientôt disponible.</p>
+      <h3>{{ loadError || 'Aucune slide dans cette classe' }}</h3>
+      <p v-if="loadError">Vérifiez que vous êtes inscrit à cette classe et reconnectez-vous si besoin.</p>
+      <p v-else>Le contenu 3D sera bientôt disponible.</p>
       <button class="btn-back" @click="goBack">← Retour</button>
     </div>
   </div>
@@ -117,6 +118,7 @@ const props = defineProps({
 
 // ── État ──────────────────────────────────────────────────────────────────────
 const loading     = ref(true)
+const loadError   = ref('')
 const slides      = ref([])
 const classroom   = ref(null)
 const enrollment  = ref(null)
@@ -146,7 +148,7 @@ async function goTo(idx) {
 
 function prev() { goTo(currentIdx.value - 1) }
 function next() { goTo(currentIdx.value + 1) }
-function goBack() { router.visit(`/student/classrooms/${props.classroomId}`) }
+function goBack() { router.visit(route('student.dashboard')) }
 
 // ── Clavier ───────────────────────────────────────────────────────────────────
 function onKeyDown(e) {
@@ -179,6 +181,7 @@ function clearAutoTimer() {
 // ── API ───────────────────────────────────────────────────────────────────────
 async function load() {
   loading.value = true
+  loadError.value = ''
   try {
     // Charger les slides de la classe
     const [slidesRes, classRes] = await Promise.all([
@@ -205,6 +208,11 @@ async function load() {
     startAutoTimer()
   } catch (e) {
     console.error('Erreur chargement slides', e)
+    const status = e.response?.status
+    if (status === 401) loadError.value = 'Session expirée — reconnectez-vous'
+    else if (status === 403) loadError.value = 'Accès refusé à cette classe'
+    else loadError.value = e.response?.data?.message || 'Impossible de charger les slides'
+    slides.value = []
   } finally {
     loading.value = false
   }

@@ -187,6 +187,203 @@
           </div>
         </div>
 
+        <!-- ── COURSES & SLIDES ── -->
+        <div v-else-if="activeView === 'courses'" key="courses" class="view">
+          <!-- Toolbar -->
+          <div class="table-toolbar">
+            <div class="search-inline">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+              <input v-model="courseSearch" placeholder="Rechercher par cours ou enseignant..."/>
+            </div>
+            <div class="toolbar-info" style="display: flex; align-items: center; gap: 12px; margin-left: auto;">
+              <span class="info-chip">{{ totalCourses }} cours</span>
+              <button class="btn-save" style="font-size:0.82rem; padding: 0.5rem 1rem; border-radius:8px; display: flex; align-items: center; gap: 4px; font-weight: 600;" @click="openCourseModal('create')">
+                + Nouveau cours
+              </button>
+            </div>
+          </div>
+
+          <!-- Course list -->
+          <div class="cls-course-list">
+            <div v-for="course in filteredCourses" :key="course.id" class="cls-course-card">
+              <!-- Card header — click to expand -->
+              <div class="cls-course-header" @click="toggleCourse(course)">
+                <div class="cls-course-left">
+                  <div class="cls-course-icon">📚</div>
+                  <div class="cls-course-info">
+                    <div class="cls-course-name">{{ course.title }}</div>
+                    <div class="cls-course-meta">
+                      <span class="meta-tag course-tag" style="background: rgba(167,139,250,0.07); border-color: rgba(167,139,250,0.15); color: #a78bfa;">
+                        ⚡ Niveau : {{ course.level === 'beginner' ? 'Débutant' : course.level === 'intermediate' ? 'Intermédiaire' : 'Avancé' }}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="cls-course-right" @click.stop>
+                  <!-- Teacher badge -->
+                  <div class="teacher-chip" v-if="course.teacher?.name">
+                    <div class="teacher-chip-avatar">{{ course.teacher.name.charAt(0).toUpperCase() }}</div>
+                    <span>{{ course.teacher.name }}</span>
+                    <span class="role-badge teacher" style="font-size:0.65rem;padding:1px 7px">Enseignant</span>
+                  </div>
+                  <div class="teacher-chip muted" v-else>
+                    <span>— Aucun enseignant —</span>
+                  </div>
+
+                  <!-- Slide count badge -->
+                  <div class="slide-chip">
+                    🗂 {{ (course.classrooms || []).reduce((acc, c) => acc + (c.slides?.length || 0), 0) }} slide{{ (course.classrooms || []).reduce((acc, c) => acc + (c.slides?.length || 0), 0) !== 1 ? 's' : '' }}
+                  </div>
+
+                  <!-- CRUD Actions -->
+                  <div style="display: flex; gap: 6px; align-items: center; margin-right: 4px;">
+                    <button class="btn-action-view" style="padding: 0.35rem 0.7rem; background: rgba(167,139,250,0.1); color: #a78bfa; border: 1px solid rgba(167,139,250,0.2); border-radius: 6px; font-size: 0.75rem; display: inline-flex; align-items: center; gap: 4px; font-weight: 500; cursor: pointer;" @click="openSlideEditor(course)">
+                      🎞️ Slides 3D
+                    </button>
+                    <button class="btn-action-edit" style="padding: 0.35rem 0.7rem; background: rgba(255,255,255,0.06); color: #fff; border: 1px solid rgba(255,255,255,0.1); border-radius: 6px; font-size: 0.75rem; cursor: pointer;" @click="openCourseModal('edit', course)">
+                      Modifier
+                    </button>
+                    <button class="btn-action-delete" style="padding: 0.35rem 0.7rem; background: rgba(239,68,68,0.1); color: #f87171; border: 1px solid rgba(239,68,68,0.2); border-radius: 6px; font-size: 0.75rem; cursor: pointer;" @click="deleteCourseModal = { show: true, course }">
+                      Supprimer
+                    </button>
+                  </div>
+
+                  <!-- Expand arrow -->
+                  <svg class="expand-arrow" :class="{ rotated: expandedCourse === course.id }" @click="toggleCourse(course)"
+                    viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16" style="cursor: pointer;">
+                    <polyline points="6,9 12,15 18,9"/>
+                  </svg>
+                </div>
+              </div>
+
+              <!-- Expanded slides list -->
+              <transition name="expand">
+                <div class="slides-expand" v-if="expandedCourse === course.id">
+                  <div class="slides-expand-inner">
+                    <template v-if="(course.classrooms || []).flatMap(c => c.slides || []).length">
+                      <div v-for="(slide, sIdx) in (course.classrooms || []).flatMap(c => c.slides || [])" :key="slide.id" class="slide-row" style="display: flex; align-items: center; gap: 10px; padding: 0.6rem 0.8rem; border-bottom: 1px solid rgba(255,255,255,0.03);">
+                        <span class="slide-pos">#{{ sIdx + 1 }}</span>
+                        <div class="slide-row-info" style="flex: 1;">
+                          <span class="slide-row-title" style="font-weight: 500;">{{ slide.title || 'Sans titre' }}</span>
+                          <span class="slide-row-preview" v-if="slide.type" style="display: block; font-size: 0.72rem; color: rgba(255,255,255,0.35); margin-top: 2px;">Type : {{ slide.type }}</span>
+                        </div>
+                        <div style="display: flex; gap: 8px; align-items: center;">
+                          <span class="slide-3d-chip" v-if="slide.object3dUrl || slide.content?.length">🧊 3D</span>
+                          <span class="slide-no3d-chip" v-else>📄 Texte</span>
+                          <button class="btn-action-edit" style="padding: 0.25rem 0.55rem; background: rgba(167,139,250,0.1); color: #a78bfa; border: 1px solid rgba(167,139,250,0.25); border-radius: 5px; font-size: 0.7rem; cursor: pointer; display: inline-flex; align-items: center; gap: 3px;" @click="openSlideEditor(course)">
+                            ✏️ Gérer les slides
+                          </button>
+                        </div>
+                      </div>
+                    </template>
+                    <div v-else class="slides-empty">Aucune slide dans ce cours</div>
+                  </div>
+                </div>
+              </transition>
+            </div>
+
+            <div class="empty-state" v-if="!filteredCourses.length">
+              Aucun cours trouvé
+            </div>
+          </div>
+        </div>
+
+        <!-- ── CLASSROOMS & STUDENTS ── -->
+        <div v-else-if="activeView === 'classrooms'" key="classrooms" class="view">
+          <!-- Toolbar -->
+          <div class="table-toolbar">
+            <div class="search-inline">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+              <input v-model="classroomSearch" placeholder="Rechercher par classe ou cours..."/>
+            </div>
+            <div class="toolbar-info" style="display: flex; align-items: center; gap: 12px; margin-left: auto;">
+              <span class="info-chip" style="background:rgba(0,245,212,0.1); border-color:rgba(0,245,212,0.2); color:#00f5d4;">
+                🏛 {{ allClassrooms.length }} classes
+              </span>
+              <button class="btn-save" style="font-size:0.82rem; padding: 0.5rem 1rem; border-radius:8px; display: flex; align-items: center; gap: 4px; font-weight: 600; background: #00f5d4; color: #050b18;" @click="openClassroomModal('create')">
+                + Nouvelle classe
+              </button>
+            </div>
+          </div>
+
+          <!-- Classroom list -->
+          <div class="cls-course-list">
+            <div v-for="cls in filteredClassrooms" :key="cls.id" class="cls-course-card">
+              <!-- Card header — click to expand -->
+              <div class="cls-course-header" @click="toggleClassroom(cls)">
+                <div class="cls-course-left">
+                  <div class="cls-course-icon">🏛️</div>
+                  <div class="cls-course-info">
+                    <div class="cls-course-name">{{ cls.name }}</div>
+                    <div class="cls-course-meta">
+                      <span class="meta-tag course-tag">
+                        📚 {{ cls.course?.title || '— Aucun cours —' }}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="cls-course-right" @click.stop>
+                  <!-- Description or dates -->
+                  <div style="font-size: 0.8rem; color: rgba(255,255,255,0.45); font-weight: 500;" v-if="cls.description">
+                    {{ cls.description.substring(0, 40) }}
+                  </div>
+
+                  <!-- Enrolled students count badge -->
+                  <div class="slide-chip" style="background: rgba(99,102,241,0.08); border-color: rgba(99,102,241,0.18); color: #818cf8;">
+                    🎒 {{ (cls.students || []).length }} étudiant{{ (cls.students || []).length !== 1 ? 's' : '' }} / {{ cls.capacity }}
+                  </div>
+
+                  <!-- CRUD Actions -->
+                  <div style="display: flex; gap: 6px; align-items: center; margin-right: 4px;">
+                    <button class="btn-action-view" style="padding: 0.35rem 0.7rem; background: rgba(167,139,250,0.1); color: #a78bfa; border: 1px solid rgba(167,139,250,0.2); border-radius: 6px; font-size: 0.75rem; display: inline-flex; align-items: center; gap: 4px; font-weight: 500; cursor: pointer;" @click="cls.course ? openSlideEditor(cls.course) : showToast('Aucun cours lié à cette classe', 'error')">
+                      🎞️ Slides
+                    </button>
+                    <button class="btn-action-edit" style="padding: 0.35rem 0.7rem; background: rgba(255,255,255,0.06); color: #fff; border: 1px solid rgba(255,255,255,0.1); border-radius: 6px; font-size: 0.75rem; cursor: pointer;" @click="openClassroomModal('edit', cls)">
+                      Modifier
+                    </button>
+                    <button class="btn-action-delete" style="padding: 0.35rem 0.7rem; background: rgba(239,68,68,0.1); color: #f87171; border: 1px solid rgba(239,68,68,0.2); border-radius: 6px; font-size: 0.75rem; cursor: pointer;" @click="deleteClassroomModal = { show: true, classroom: cls }">
+                      Supprimer
+                    </button>
+                  </div>
+
+                  <!-- Expand arrow -->
+                  <svg class="expand-arrow" :class="{ rotated: expandedClassroom === cls.id }" @click="toggleClassroom(cls)"
+                    viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16" style="cursor: pointer;">
+                    <polyline points="6,9 12,15 18,9"/>
+                  </svg>
+                </div>
+              </div>
+
+              <!-- Expanded students list -->
+              <transition name="expand">
+                <div class="slides-expand" v-if="expandedClassroom === cls.id">
+                  <div class="slides-expand-inner">
+                    <template v-if="(cls.students || []).length">
+                      <div v-for="student in cls.students" :key="student.id" class="slide-row" style="border-color: rgba(99,102,241,0.08);">
+                        <span class="slide-pos" style="font-size: 1.1rem; color: #818cf8;">🎒</span>
+                        <div class="slide-row-info">
+                          <span class="slide-row-title">{{ student.name }}</span>
+                          <span class="slide-row-preview" style="color: rgba(255,255,255,0.35);">Progression : {{ student.progress ?? 0 }}%</span>
+                        </div>
+                        <span class="role-badge" :style="{ background: student.status === 'active' ? 'rgba(0,245,212,0.12)' : 'rgba(255,255,255,0.05)', color: student.status === 'active' ? '#00f5d4' : '#fff' }" style="font-size:0.7rem; padding: 2px 8px; border-radius: 6px;">
+                          {{ student.status === 'active' ? 'Actif' : student.status }}
+                        </span>
+                      </div>
+                    </template>
+                    <div v-else class="slides-empty">Aucun étudiant inscrit dans cette classe</div>
+                  </div>
+                </div>
+              </transition>
+            </div>
+
+            <div class="empty-state" v-if="!filteredClassrooms.length">
+              Aucune classe trouvée
+            </div>
+          </div>
+        </div>
+
         <!-- ── PROFILE ── -->
         <div v-else-if="activeView === 'profile'" key="profile" class="view">
           <div class="profile-card">
@@ -261,12 +458,153 @@
       </div>
     </transition>
 
+    <!-- MODAL créer/modifier cours -->
+    <transition name="modal">
+      <div class="modal-overlay" v-if="courseModal.show" @click.self="courseModal.show = false">
+        <div class="modal">
+          <div class="modal-header">
+            <h3>{{ courseModal.mode === 'create' ? 'Ajouter un cours' : 'Modifier le cours' }}</h3>
+            <button class="modal-close" @click="courseModal.show = false">✕</button>
+          </div>
+          <div class="modal-body">
+            <div class="field">
+              <label>Titre du cours *</label>
+              <input v-model="courseModal.form.title" placeholder="Ex: Introduction à la 3D interactive"/>
+            </div>
+            <div class="field">
+              <label>Description</label>
+              <textarea v-model="courseModal.form.description" rows="3" placeholder="Description du programme du cours..."></textarea>
+            </div>
+            <div class="field">
+              <label>Niveau</label>
+              <select v-model="courseModal.form.level">
+                <option value="beginner">Débutant</option>
+                <option value="intermediate">Intermédiaire</option>
+                <option value="advanced">Avancé</option>
+              </select>
+            </div>
+            <div class="field">
+              <label>Enseignant *</label>
+              <select v-model="courseModal.form.teacher_id">
+                <option v-for="teacher in teachers" :key="teacher.id" :value="teacher.id">
+                  {{ teacher.name }} ({{ teacher.email }})
+                </option>
+              </select>
+            </div>
+            <div class="field" style="margin-top: 1rem;">
+              <label class="checkbox-label" style="display:flex; align-items:center; gap:8px; cursor:pointer; font-size:0.85rem; color: rgba(255,255,255,0.7);">
+                <input type="checkbox" v-model="courseModal.form.is_published" style="accent-color:#00f5d4;"/>
+                <span>Publier le cours (visible par les étudiants)</span>
+              </label>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button class="btn-cancel" @click="courseModal.show = false">Annuler</button>
+            <button class="btn-save" @click="saveCourse" :disabled="isSaving">
+              {{ isSaving ? 'Enregistrement...' : 'Enregistrer' }}
+            </button>
+          </div>
+        </div>
+      </div>
+    </transition>
+
+    <!-- MODAL créer/modifier classe -->
+    <transition name="modal">
+      <div class="modal-overlay" v-if="classroomModal.show" @click.self="classroomModal.show = false">
+        <div class="modal">
+          <div class="modal-header">
+            <h3>{{ classroomModal.mode === 'create' ? 'Ajouter une classe' : 'Modifier la classe' }}</h3>
+            <button class="modal-close" @click="classroomModal.show = false">✕</button>
+          </div>
+          <div class="modal-body">
+            <div class="field">
+              <label>Nom de la classe *</label>
+              <input v-model="classroomModal.form.name" placeholder="Ex: Groupe A - Master 3D"/>
+            </div>
+            <div class="field">
+              <label>Description</label>
+              <textarea v-model="classroomModal.form.description" rows="3" placeholder="Remarques ou détails..."></textarea>
+            </div>
+            <div class="field">
+              <label>Capacité maximale (étudiants) *</label>
+              <input type="number" v-model.number="classroomModal.form.capacity" min="1" max="500"/>
+            </div>
+            <div class="field">
+              <label>Cours lié *</label>
+              <select v-model="classroomModal.form.course_id">
+                <option v-for="course in allCourses" :key="course.id" :value="course.id">
+                  {{ course.title }}
+                </option>
+              </select>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button class="btn-cancel" @click="classroomModal.show = false">Annuler</button>
+            <button class="btn-save" style="background:#00f5d4; color:#050b18;" @click="saveClassroom" :disabled="isSaving">
+              {{ isSaving ? 'Enregistrement...' : 'Enregistrer' }}
+            </button>
+          </div>
+        </div>
+      </div>
+    </transition>
+
+    <!-- MODAL confirmer suppression cours -->
+    <transition name="modal">
+      <div class="modal-overlay" v-if="deleteCourseModal.show" @click.self="deleteCourseModal.show = false">
+        <div class="modal modal-sm">
+          <div class="modal-header danger">
+            <h3>Supprimer le cours</h3>
+            <button class="modal-close" @click="deleteCourseModal.show = false">✕</button>
+          </div>
+          <div class="modal-body">
+            <p>Voulez-vous vraiment supprimer le cours <strong>{{ deleteCourseModal.course?.title }}</strong> ?</p>
+            <p style="color:#f87171; font-size:0.8rem; margin-top:8px;">⚠️ Attention : Cela supprimera également toutes les classes et slides associées à ce cours.</p>
+          </div>
+          <div class="modal-footer">
+            <button class="btn-cancel" @click="deleteCourseModal.show = false">Annuler</button>
+            <button class="btn-delete" @click="deleteCourse" :disabled="isSaving">
+              {{ isSaving ? 'Suppression...' : 'Supprimer' }}
+            </button>
+          </div>
+        </div>
+      </div>
+    </transition>
+
+    <!-- MODAL confirmer suppression classe -->
+    <transition name="modal">
+      <div class="modal-overlay" v-if="deleteClassroomModal.show" @click.self="deleteClassroomModal.show = false">
+        <div class="modal modal-sm">
+          <div class="modal-header danger">
+            <h3>Supprimer la classe</h3>
+            <button class="modal-close" @click="deleteClassroomModal.show = false">✕</button>
+          </div>
+          <div class="modal-body">
+            <p>Voulez-vous vraiment supprimer la classe <strong>{{ deleteClassroomModal.classroom?.name }}</strong> ? Cette action est irréversible.</p>
+          </div>
+          <div class="modal-footer">
+            <button class="btn-cancel" @click="deleteClassroomModal.show = false">Annuler</button>
+            <button class="btn-delete" @click="deleteClassroom" :disabled="isSaving">
+              {{ isSaving ? 'Suppression...' : 'Supprimer' }}
+            </button>
+          </div>
+        </div>
+      </div>
+    </transition>
+
     <!-- Toast -->
     <transition name="toast">
       <div class="toast-global" v-if="toast.show" :class="toast.type">
         {{ toast.type === 'success' ? '✅' : '❌' }} {{ toast.msg }}
       </div>
     </transition>
+
+    <!-- Slide Editor Modal -->
+    <SlideEditor
+      :show="slideEditorShow"
+      :course="selectedCourseForSlides"
+      @close="slideEditorShow = false"
+      @updated="loadCourses"
+    />
   </div>
 </template>
 
@@ -274,6 +612,7 @@
 import { ref, computed, onMounted } from 'vue'
 import { Link, router } from '@inertiajs/vue3'
 import axios from 'axios'
+import SlideEditor from '../Teacher/SlideEditor.vue'
 
 const props = defineProps({
   auth: Object,  // { user: { id, name, email, role } }
@@ -284,23 +623,52 @@ const activeView       = ref('overview')
 const userTab          = ref('students')
 const userSearch       = ref('')
 const searchQuery      = ref('')
+const courseSearch     = ref('')
+const classroomSearch   = ref('')
 const currentTime      = ref('')
 const isSaving         = ref(false)
 const users            = ref([])
+const allCourses       = ref([])
+const allClassrooms    = ref([])
+const expandedCourse   = ref(null)
+const expandedClassroom = ref(null)
+const classroomSlides  = ref({})
+const loadingSlides    = ref(false)
+
+const slideEditorShow       = ref(false)
+const selectedCourseForSlides = ref(null)
+
+function openSlideEditor(course) {
+  if (!course) {
+    showToast('Aucun cours associé', 'error')
+    return
+  }
+  selectedCourseForSlides.value = course
+  slideEditorShow.value = true
+}
 
 const toast       = ref({ show: false, msg: '', type: 'success' })
 const modal       = ref({ show: false, mode: 'create', form: { name: '', email: '', password: '', role: 'student' }, editId: null })
 const deleteModal = ref({ show: false, user: null })
 
+const courseModal       = ref({ show: false, mode: 'create', form: { title: '', description: '', level: 'beginner', is_published: false, teacher_id: '' }, editId: null })
+const classroomModal    = ref({ show: false, mode: 'create', form: { name: '', description: '', capacity: 30, course_id: '', is_active: true }, editId: null })
+const deleteCourseModal = ref({ show: false, course: null })
+const deleteClassroomModal = ref({ show: false, classroom: null })
+
 // ── Navigation ───────────────────────────────────────────────────────────────
 const svgGrid    = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>`
 const svgUsers   = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>`
 const svgProfile = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>`
+const svgCourses = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>`
+const svgClass   = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18"><path d="M22 10v6M2 10l10-5 10 5-10 5z"/><path d="M6 12v5c3 3 9 3 12 0v-5"/></svg>`
 
 const navItems = [
-  { id: 'overview', label: 'Vue globale', icon: svgGrid },
-  { id: 'users',    label: 'Utilisateurs', icon: svgUsers },
-  { id: 'profile',  label: 'Mon Profil',   icon: svgProfile },
+  { id: 'overview',   label: 'Vue globale',    icon: svgGrid },
+  { id: 'users',      label: 'Utilisateurs',   icon: svgUsers },
+  { id: 'courses',    label: 'Cours & Slides', icon: svgCourses },
+  { id: 'classrooms', label: 'Classes',        icon: svgClass },
+  { id: 'profile',    label: 'Mon Profil',     icon: svgProfile },
 ]
 
 // ── Computed ─────────────────────────────────────────────────────────────────
@@ -313,13 +681,34 @@ const studentPct      = computed(() => users.value.length ? (students.value.leng
 const teacherPct      = computed(() => users.value.length ? (teachers.value.length / users.value.length) * 100 : 0)
 
 const currentPageTitle = computed(() => ({
-  overview: 'Vue globale', users: 'Utilisateurs', profile: 'Mon Profil'
+  overview: 'Vue globale', users: 'Utilisateurs', courses: 'Cours & Slides', classrooms: 'Classes', profile: 'Mon Profil'
 })[activeView.value])
 
+const filteredCourses = computed(() => {
+  if (!courseSearch.value) return allCourses.value
+  const q = courseSearch.value.toLowerCase()
+  return allCourses.value.filter(c =>
+    c.title?.toLowerCase().includes(q) ||
+    c.teacher?.name?.toLowerCase().includes(q)
+  )
+})
+
+const filteredClassrooms = computed(() => {
+  if (!classroomSearch.value) return allClassrooms.value
+  const q = classroomSearch.value.toLowerCase()
+  return allClassrooms.value.filter(c =>
+    c.name?.toLowerCase().includes(q) ||
+    c.course?.title?.toLowerCase().includes(q)
+  )
+})
+
+const totalCourses = computed(() => allCourses.value.length)
+
 const statsCards = computed(() => [
-  { label: 'Utilisateurs total', val: users.value.length, pct: 100, trend: 12, color: '#00f5d4', bg: 'rgba(0,245,212,0.1)', icon: svgUsers },
-  { label: 'Étudiants', val: students.value.length, pct: studentPct.value, trend: 8,  color: '#6366f1', bg: 'rgba(99,102,241,0.1)', icon: svgUsers },
-  { label: 'Enseignants', val: teachers.value.length, pct: teacherPct.value, trend: 5, color: '#f59e0b', bg: 'rgba(245,158,11,0.1)', icon: svgUsers },
+  { label: 'Utilisateurs total', val: users.value.length,    pct: 100,              trend: 12, color: '#00f5d4', bg: 'rgba(0,245,212,0.1)',   icon: svgUsers },
+  { label: 'Étudiants',          val: students.value.length, pct: studentPct.value, trend: 8,  color: '#6366f1', bg: 'rgba(99,102,241,0.1)', icon: svgUsers },
+  { label: 'Enseignants',        val: teachers.value.length, pct: teacherPct.value, trend: 5,  color: '#f59e0b', bg: 'rgba(245,158,11,0.1)', icon: svgUsers },
+  { label: 'Cours actifs',       val: totalCourses.value,    pct: 80,               trend: 3,  color: '#a78bfa', bg: 'rgba(167,139,250,0.1)', icon: svgCourses },
 ])
 
 const userTabs = computed(() => [
@@ -408,6 +797,176 @@ async function deleteUser() {
   }
 }
 
+// ── Course Modals & API Calls ────────────────────────────────────────────────
+function openCourseModal(mode, course = null) {
+  courseModal.value = {
+    show: true,
+    mode,
+    editId: course?.id || null,
+    form: {
+      title: course?.title || '',
+      description: course?.description || '',
+      level: course?.level || 'beginner',
+      is_published: course?.is_published ?? false,
+      teacher_id: course?.teacher_id || teachers.value[0]?.id || '',
+    },
+  }
+}
+
+async function saveCourse() {
+  if (!courseModal.value.form.title.trim()) {
+    showToast('Le titre du cours est requis', 'error')
+    return
+  }
+  isSaving.value = true
+  try {
+    if (courseModal.value.mode === 'create') {
+      await axios.post('/api/courses', courseModal.value.form)
+      showToast('Cours créé avec succès')
+    } else {
+      await axios.put(`/api/courses/${courseModal.value.editId}`, courseModal.value.form)
+      showToast('Cours modifié avec succès')
+    }
+    courseModal.value.show = false
+    await loadCourses()
+    await loadClassrooms()
+  } catch (e) {
+    const errors = e?.response?.data?.errors
+    const firstErr = errors ? Object.values(errors)[0]?.[0] : null
+    showToast(firstErr || 'Une erreur est survenue lors de la sauvegarde du cours', 'error')
+  } finally {
+    isSaving.value = false
+  }
+}
+
+async function deleteCourse() {
+  isSaving.value = true
+  try {
+    await axios.delete(`/api/courses/${deleteCourseModal.value.course.id}`)
+    showToast('Cours supprimé')
+    deleteCourseModal.value.show = false
+    await loadCourses()
+    await loadClassrooms()
+  } catch {
+    showToast('Erreur lors de la suppression du cours', 'error')
+  } finally {
+    isSaving.value = false
+  }
+}
+
+// ── Classroom Modals & API Calls ─────────────────────────────────────────────
+function openClassroomModal(mode, classroom = null) {
+  classroomModal.value = {
+    show: true,
+    mode,
+    editId: classroom?.id || null,
+    form: {
+      name: classroom?.name || '',
+      description: classroom?.description || '',
+      capacity: classroom?.capacity || 30,
+      course_id: classroom?.course_id || allCourses.value[0]?.id || '',
+      is_active: classroom?.is_active ?? true,
+    },
+  }
+}
+
+async function saveClassroom() {
+  if (!classroomModal.value.form.name.trim()) {
+    showToast('Le nom de la classe est requis', 'error')
+    return
+  }
+  isSaving.value = true
+  try {
+    if (classroomModal.value.mode === 'create') {
+      await axios.post('/api/classrooms', classroomModal.value.form)
+      showToast('Classe créée avec succès')
+    } else {
+      await axios.put(`/api/classrooms/${classroomModal.value.editId}`, classroomModal.value.form)
+      showToast('Classe modifiée avec succès')
+    }
+    classroomModal.value.show = false
+    await loadClassrooms()
+  } catch (e) {
+    const errors = e?.response?.data?.errors
+    const firstErr = errors ? Object.values(errors)[0]?.[0] : null
+    showToast(firstErr || 'Une erreur est survenue lors de la sauvegarde de la classe', 'error')
+  } finally {
+    isSaving.value = false
+  }
+}
+
+async function deleteClassroom() {
+  isSaving.value = true
+  try {
+    await axios.delete(`/api/classrooms/${deleteClassroomModal.value.classroom.id}`)
+    showToast('Classe supprimée')
+    deleteClassroomModal.value.show = false
+    await loadClassrooms()
+  } catch {
+    showToast('Erreur lors de la suppression de la classe', 'error')
+  } finally {
+    isSaving.value = false
+  }
+}
+
+// ── Load courses with teacher & slides ────────────────────────────────────────
+async function loadCourses() {
+  try {
+    const { data } = await axios.get('/api/courses')
+    allCourses.value = Array.isArray(data) ? data : data.data || []
+  } catch {
+    showToast('Erreur lors du chargement des cours', 'error')
+  }
+}
+
+function toggleCourse(course) {
+  if (expandedCourse.value === course.id) {
+    expandedCourse.value = null
+  } else {
+    expandedCourse.value = course.id
+  }
+}
+
+// ── Load classrooms with courses, slides & teacher ────────────────────────────
+async function loadClassrooms() {
+  try {
+    const { data } = await axios.get('/api/classrooms')
+    const list = Array.isArray(data) ? data : data.data || []
+    // For each classroom, enrich with slide count
+    const enriched = await Promise.all(list.map(async cls => {
+      try {
+        const r = await axios.get(`/api/classrooms/${cls.id}/slides`)
+        const slides = Array.isArray(r.data) ? r.data : r.data.data || []
+        return { ...cls, slideCount: slides.length, slidesData: slides }
+      } catch {
+        return { ...cls, slideCount: 0, slidesData: [] }
+      }
+    }))
+    allClassrooms.value = enriched
+  } catch {
+    showToast('Erreur lors du chargement des cours', 'error')
+  }
+}
+
+async function toggleClassroom(cls) {
+  if (expandedClassroom.value === cls.id) {
+    expandedClassroom.value = null
+    return
+  }
+  expandedClassroom.value = cls.id
+  if (!classroomSlides.value[cls.id]) {
+    loadingSlides.value = true
+    try {
+      const r = await axios.get(`/api/classrooms/${cls.id}/slides`)
+      classroomSlides.value[cls.id] = Array.isArray(r.data) ? r.data : r.data.data || []
+    } catch {
+      classroomSlides.value[cls.id] = []
+    } finally {
+      loadingSlides.value = false
+    }
+  }
+}
+
 // ── Clock ─────────────────────────────────────────────────────────────────────
 function tick() {
   currentTime.value = new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })
@@ -415,6 +974,8 @@ function tick() {
 
 onMounted(() => {
   loadUsers()
+  loadClassrooms()
+  loadCourses()
   tick()
   setInterval(tick, 60000)
 })
@@ -576,6 +1137,83 @@ onMounted(() => {
 .toast-global.success { background: rgba(0,245,212,0.12); border: 1px solid rgba(0,245,212,0.3); color: #00f5d4; }
 .toast-global.error   { background: rgba(239,68,68,0.12);  border: 1px solid rgba(239,68,68,0.3);  color: #f87171; }
 
+/* ── Cours & Classes view ────────────────────────────────────────────────── */
+.toolbar-info { display: flex; gap: 8px; }
+.info-chip { padding: 4px 12px; background: rgba(167,139,250,0.1); border: 1px solid rgba(167,139,250,0.2); border-radius: 20px; font-size: 0.78rem; color: #a78bfa; }
+
+.cls-course-list { display: flex; flex-direction: column; gap: 10px; }
+
+.cls-course-card {
+  background: rgba(255,255,255,0.03);
+  border: 1px solid rgba(255,255,255,0.07);
+  border-radius: 14px;
+  overflow: hidden;
+  transition: border-color 0.2s;
+}
+.cls-course-card:hover { border-color: rgba(167,139,250,0.25); }
+
+.cls-course-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1rem 1.2rem;
+  cursor: pointer;
+  gap: 1rem;
+  transition: background 0.2s;
+}
+.cls-course-header:hover { background: rgba(255,255,255,0.02); }
+
+.cls-course-left { display: flex; align-items: center; gap: 12px; flex: 1; min-width: 0; }
+.cls-course-icon { font-size: 1.6rem; flex-shrink: 0; }
+.cls-course-info { min-width: 0; }
+.cls-course-name { font-family: 'Syne', sans-serif; font-size: 0.95rem; font-weight: 700; color: #fff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cls-course-meta { margin-top: 4px; }
+.meta-tag { font-size: 0.78rem; color: rgba(255,255,255,0.45); }
+.course-tag { background: rgba(0,245,212,0.07); border: 1px solid rgba(0,245,212,0.15); border-radius: 6px; padding: 2px 8px; color: #00f5d4; }
+
+.cls-course-right { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
+
+.teacher-chip { display: flex; align-items: center; gap: 6px; padding: 4px 10px 4px 5px; background: rgba(99,102,241,0.08); border: 1px solid rgba(99,102,241,0.2); border-radius: 20px; font-size: 0.78rem; color: rgba(255,255,255,0.7); }
+.teacher-chip.muted { background: rgba(255,255,255,0.04); border-color: rgba(255,255,255,0.08); color: rgba(255,255,255,0.3); }
+.teacher-chip-avatar { width: 22px; height: 22px; border-radius: 50%; background: linear-gradient(135deg, #6366f1, #4f46e5); display: flex; align-items: center; justify-content: center; font-size: 0.65rem; font-weight: 700; color: #fff; flex-shrink: 0; }
+
+.slide-chip { display: flex; align-items: center; gap: 5px; padding: 4px 10px; background: rgba(167,139,250,0.08); border: 1px solid rgba(167,139,250,0.18); border-radius: 20px; font-size: 0.78rem; color: #a78bfa; white-space: nowrap; }
+
+.expand-arrow { color: rgba(255,255,255,0.3); transition: transform 0.3s ease, color 0.2s; }
+.expand-arrow.rotated { transform: rotate(180deg); color: #a78bfa; }
+
+/* Slides expand panel */
+.slides-expand { border-top: 1px solid rgba(255,255,255,0.06); }
+.slides-expand-inner { padding: 0.8rem 1.2rem; display: flex; flex-direction: column; gap: 6px; }
+
+.slide-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0.55rem 0.8rem;
+  background: rgba(255,255,255,0.02);
+  border: 1px solid rgba(255,255,255,0.04);
+  border-radius: 9px;
+  transition: background 0.2s;
+}
+.slide-row:hover { background: rgba(255,255,255,0.05); }
+.slide-pos { font-family: 'Syne', sans-serif; font-size: 0.72rem; font-weight: 700; color: rgba(255,255,255,0.25); width: 28px; flex-shrink: 0; }
+.slide-row-info { flex: 1; min-width: 0; }
+.slide-row-title { display: block; font-size: 0.84rem; font-weight: 500; color: #fff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.slide-row-preview { display: block; font-size: 0.72rem; color: rgba(255,255,255,0.3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 1px; }
+.slide-3d-chip   { padding: 2px 8px; background: rgba(0,245,212,0.1); border: 1px solid rgba(0,245,212,0.2); border-radius: 6px; font-size: 0.7rem; color: #00f5d4; flex-shrink: 0; }
+.slide-no3d-chip { padding: 2px 8px; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.08); border-radius: 6px; font-size: 0.7rem; color: rgba(255,255,255,0.35); flex-shrink: 0; }
+
+.slides-empty { text-align: center; padding: 1.2rem; color: rgba(255,255,255,0.25); font-size: 0.82rem; }
+.slides-loading { display: flex; align-items: center; gap: 8px; color: rgba(255,255,255,0.35); font-size: 0.82rem; padding: 0.8rem; }
+.mini-spinner { width: 14px; height: 14px; border: 2px solid rgba(255,255,255,0.1); border-top-color: #00f5d4; border-radius: 50%; animation: spin 0.7s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* expand/collapse animation */
+.expand-enter-active, .expand-leave-active { transition: all 0.3s ease; overflow: hidden; }
+.expand-enter-from, .expand-leave-to { opacity: 0; max-height: 0; }
+.expand-enter-to, .expand-leave-from { max-height: 800px; }
+
 /* Transitions */
 .fade-enter-active, .fade-leave-active { transition: all 0.25s ease; }
 .fade-enter-from, .fade-leave-to { opacity: 0; transform: translateY(8px); }
@@ -589,5 +1227,7 @@ onMounted(() => {
 @media (max-width: 900px) {
   .stats-grid { grid-template-columns: 1fr 1fr; }
   .charts-row { grid-template-columns: 1fr; }
+  .cls-course-header { flex-direction: column; align-items: flex-start; }
+  .cls-course-right { width: 100%; flex-wrap: wrap; }
 }
 </style>

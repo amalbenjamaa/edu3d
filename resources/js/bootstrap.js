@@ -1,11 +1,13 @@
 import axios from 'axios'
 
-window.axios = axios
-window.axios.defaults.headers.common['X-Requested-With'] = 'XMLHttpRequest'
-window.axios.defaults.headers.common['Accept'] = 'application/json'
-window.axios.defaults.withCredentials = true
+// Configure the shared axios singleton (all `import axios from 'axios'` use this)
+axios.defaults.headers.common['X-Requested-With'] = 'XMLHttpRequest'
+axios.defaults.headers.common['Accept'] = 'application/json'
+axios.defaults.withCredentials = true
 
 const csrf = document.head.querySelector('meta[name="csrf-token"]')
 if (csrf) {
-  window.axios.defaults.headers.common['X-CSRF-TOKEN'] = csrf.content
+  axios.defaults.headers.common['X-CSRF-TOKEN'] = csrf.content
 }
+
+window.axios = axios

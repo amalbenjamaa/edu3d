@@ -18,7 +18,7 @@ class CourseController extends Controller
         $user = $request->user();
 
         $courses = match (true) {
-            $user->isAdmin() => Course::with(['classrooms', 'teacher'])->latest()->get(),
+            $user->isAdmin() => Course::with(['classrooms.slides', 'teacher'])->latest()->get(),
             $user->isTeacher() => Course::with('classrooms')
                 ->forTeacher($user->id)
                 ->latest()
@@ -42,12 +42,15 @@ class CourseController extends Controller
             'description'  => ['nullable', 'string'],
             'level'        => ['required', 'in:beginner,intermediate,advanced'],
             'is_published' => ['sometimes', 'boolean'],
+            'teacher_id'   => ['sometimes', 'exists:users,id'],
         ]);
 
         $course = Course::create([
-            ...$data,
+            'title'        => $data['title'],
+            'description'  => $data['description'] ?? null,
+            'level'        => $data['level'],
             'is_published' => $data['is_published'] ?? false,
-            'teacher_id'   => $request->user()->id,
+            'teacher_id'   => $request->user()->isAdmin() && isset($data['teacher_id']) ? $data['teacher_id'] : $request->user()->id,
         ]);
 
         return response()->json([
@@ -78,9 +81,15 @@ class CourseController extends Controller
             'description'  => ['nullable', 'string'],
             'level'        => ['sometimes', 'in:beginner,intermediate,advanced'],
             'is_published' => ['sometimes', 'boolean'],
+            'teacher_id'   => ['sometimes', 'exists:users,id'],
         ]);
 
-        $course->update($data);
+        if ($request->user()->isAdmin() && isset($data['teacher_id'])) {
+            $course->teacher_id = $data['teacher_id'];
+        }
+
+        $course->update($request->only('title', 'description', 'level', 'is_published'));
+        $course->save();
 
         return response()->json([
             'message' => 'Cours mis à jour.',

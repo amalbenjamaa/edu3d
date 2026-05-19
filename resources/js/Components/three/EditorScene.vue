@@ -6,6 +6,7 @@
 <script setup>
 import { ref, onMounted, onBeforeUnmount, watch } from 'vue'
 import * as THREE from 'three'
+import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js'
 
 const props = defineProps({
   slide: { type: Object, required: true },
@@ -146,11 +147,46 @@ function loadObjects() {
   }
 
   content.forEach(obj => {
+    if (obj.type === 'gltf' && obj.url) {
+      loadGltf(obj)
+      return
+    }
     const mesh = buildMesh(obj)
     if (mesh) {
       mesh.userData.isSlideObj = true
       scene?.add(mesh)
     }
+  })
+}
+
+function sanitizeGltfUrl(url) {
+  if (!url) return url
+  let u = url.trim()
+  if (u.includes('github.com/') && u.includes('/blob/')) {
+    u = u.replace('github.com', 'raw.githubusercontent.com').replace('/blob/', '/')
+  }
+  if (u.includes('gitlab.com/') && u.includes('/blob/')) {
+    u = u.replace('/blob/', '/raw/')
+  }
+  return u
+}
+
+function loadGltf(obj) {
+  const loader = new GLTFLoader()
+  const sanitizedUrl = sanitizeGltfUrl(obj.url)
+  loader.load(sanitizedUrl, (gltf) => {
+    const model = gltf.scene
+    model.position.set(...(obj.position ?? [0, 0, 0]))
+    model.rotation.set(...(obj.rotation ?? [0, 0, 0]))
+    model.scale.set(...(obj.scale ?? [1, 1, 1]))
+    model.traverse((child) => {
+      if (child.isMesh) {
+        child.castShadow = true
+        child.receiveShadow = true
+      }
+    })
+    model.userData.isSlideObj = true
+    scene?.add(model)
   })
 }
 

@@ -53,6 +53,10 @@ class SlideController extends Controller
             'content.*.rotation' => ['required_with:content', 'array', 'size:3'],
             'content.*.scale'    => ['required_with:content', 'array', 'size:3'],
             'content.*.color'    => ['nullable', 'string'],
+            'content.*.text'     => ['nullable', 'string'],
+            'content.*.url'      => ['nullable', 'string'],
+            'content.*.opacity'  => ['nullable', 'numeric'],
+            'content.*.castShadow'=> ['nullable', 'boolean'],
             'camera'       => ['nullable', 'array'],
             'camera.position' => ['nullable', 'array', 'size:3'],
             'camera.target'   => ['nullable', 'array', 'size:3'],
@@ -105,6 +109,10 @@ class SlideController extends Controller
             'content.*.rotation' => ['required_with:content', 'array', 'size:3'],
             'content.*.scale'    => ['required_with:content', 'array', 'size:3'],
             'content.*.color'    => ['nullable', 'string'],
+            'content.*.text'     => ['nullable', 'string'],
+            'content.*.url'      => ['nullable', 'string'],
+            'content.*.opacity'  => ['nullable', 'numeric'],
+            'content.*.castShadow'=> ['nullable', 'boolean'],
             'camera'   => ['nullable', 'array'],
             'camera.position' => ['nullable', 'array', 'size:3'],
             'camera.target'   => ['nullable', 'array', 'size:3'],
@@ -163,7 +171,7 @@ class SlideController extends Controller
         return response()->json([
             'message' => 'Ordre des slides mis à jour.',
             'slides'  => SlideResource::collection(
-                Slide::where('classroom_id', $classroom->id)->orderBy('order')->get()
+                Slide::where('classroom_id', $data['classroom_id'])->orderBy('order')->get()
             ),
         ]);
     }

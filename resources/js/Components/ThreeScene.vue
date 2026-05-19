@@ -305,7 +305,8 @@ async function buildObject(obj) {
 
     case 'text3d':
       if (font && obj.text) {
-        const geo = new TextGeometry(String(obj.text), {
+        const parsedText = String(obj.text).replace(/\\n/g, '\n')
+        const geo = new TextGeometry(parsedText, {
           font,
           size:           obj.size ?? 0.4,
           depth:          0.08,
@@ -365,11 +366,23 @@ async function buildObject(obj) {
   return mesh
 }
 
+function sanitizeGltfUrl(url) {
+  if (!url) return url
+  let u = url.trim()
+  if (u.includes('github.com/') && u.includes('/blob/')) {
+    u = u.replace('github.com', 'raw.githubusercontent.com').replace('/blob/', '/')
+  }
+  if (u.includes('gitlab.com/') && u.includes('/blob/')) {
+    u = u.replace('/blob/', '/raw/')
+  }
+  return u
+}
+
 function loadGLTF(url) {
   return new Promise((resolve) => {
     const loader = new GLTFLoader()
     loader.load(
-      url,
+      sanitizeGltfUrl(url),
       (gltf) => {
         const model = gltf.scene
         model.traverse(child => {

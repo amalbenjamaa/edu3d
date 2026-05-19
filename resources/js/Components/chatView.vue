@@ -320,9 +320,8 @@ async function loadConversations() {
       ...c,
       lastTime: formatTime(c.lastMessageAt),
     }))
-  } catch {
-    // Simulation si l'API n'existe pas encore
-    conversations.value = getSimulatedConversations()
+  } catch (e) {
+    console.error("Erreur de chargement des conversations", e)
   }
 }
 
@@ -331,12 +330,11 @@ async function loadMessages(convId) {
     const res = await api.get(`/messages/conversations/${convId}`)
     allMessages.value[convId] = res.data.map(m => ({
       ...m,
-      own:  m.senderId === getCurrentUserId(),
+      own:  m.senderId === getCurrentUserId() || m.senderId == getCurrentUserId(),
       time: formatTime(m.createdAt),
       sent: true,
     }))
   } catch {
-    // Simulation
     if (!allMessages.value[convId]) {
       allMessages.value[convId] = []
     }
@@ -396,7 +394,6 @@ async function sendMessage() {
   // Envoyer à l'API
   try {
     const payload = {
-      conversationId: activeConv.value.id,
       receiverId:     activeConv.value.userId,
       text:           text || null,
       fileUrl:        msg.file?.url || null,
@@ -404,13 +401,8 @@ async function sendMessage() {
     }
     await api.post('/messages', payload)
     msg.sent = true
-
-    // Simuler réponse après 1-3s (si simulation)
-    if (shouldSimulate()) {
-      setTimeout(() => simulateReply(), 1000 + Math.random() * 2000)
-    }
   } catch {
-    msg.sent = true // on affiche quand même
+    console.error("Message error")
   }
 
   if (inputRef.value) {
@@ -442,7 +434,7 @@ async function startNewConversation() {
       receiverId: selectedRecipient.value.id
     })
     newConv.id = res.data.id
-  } catch { /* simulation */ }
+  } catch (e) { console.error(e) }
 
   showNewConv.value     = false
   selectedRecipient.value = null
@@ -532,52 +524,7 @@ function getCurrentUserId() {
   return localStorage.getItem('userId') || 'me'
 }
 
-// ── Simulation (si API pas prête) ─────────────────────────
-function shouldSimulate() {
-  return true // à mettre à false quand l'API backend est prête
-}
 
-function getSimulatedConversations() {
-  return [
-    { id: 'sim-1', name: 'Alice Martin',  userId: 'u1', lastMessage: 'Bonjour professeur !',        lastTime: '09:15', unreadCount: 2, online: true  },
-    { id: 'sim-2', name: 'Bob Leroy',     userId: 'u2', lastMessage: 'J\'ai une question sur...',   lastTime: 'Hier',  unreadCount: 0, online: false },
-    { id: 'sim-3', name: 'Clara Dubois',  userId: 'u3', lastMessage: 'Merci pour le cours !',       lastTime: 'Lun',   unreadCount: 1, online: true  },
-    { id: 'sim-4', name: 'David Moreau',  userId: 'u4', lastMessage: 'Est-ce que le devoir est...',  lastTime: 'Dim',   unreadCount: 0, online: false },
-  ]
-}
-
-const simReplies = [
-  'Merci pour votre réponse !',
-  'D\'accord, je comprends mieux maintenant.',
-  'Pouvez-vous m\'expliquer davantage ?',
-  'Je vais essayer, merci !',
-  'C\'est noté, merci professeur.',
-  'J\'ai bien compris la leçon sur les objets 3D.',
-  'Le modèle 3D est vraiment impressionnant !',
-]
-
-function simulateReply() {
-  if (!activeConv.value) return
-  const convId = activeConv.value.id
-  if (!allMessages.value[convId]) allMessages.value[convId] = []
-
-  // Show typing
-  isTyping.value = true
-  setTimeout(() => {
-    isTyping.value = false
-    const reply = {
-      id:   Date.now(),
-      own:  false,
-      text: simReplies[Math.floor(Math.random() * simReplies.length)],
-      time: formatTime(new Date()),
-      sent: true,
-    }
-    allMessages.value[convId].push(reply)
-    const conv = conversations.value.find(c => c.id === convId)
-    if (conv) { conv.lastMessage = reply.text; conv.lastTime = 'Maintenant' }
-    scrollToBottom()
-  }, 1500)
-}
 
 // ── Polling pour nouveaux messages ─────────────────────────
 function startPolling() {

@@ -20,6 +20,7 @@ class Classroom extends Model
         'start_date',
         'end_date',
         'is_active',
+        'invite_code',
     ];
 
     protected function casts(): array
@@ -29,6 +30,15 @@ class Classroom extends Model
             'start_date' => 'date',
             'end_date'   => 'date',
         ];
+    }
+
+    protected static function booted()
+    {
+        static::creating(function ($classroom) {
+            if (empty($classroom->invite_code)) {
+                $classroom->invite_code = strtoupper(\Illuminate\Support\Str::random(6));
+            }
+        });
     }
 
     // ─── Relations ────────────────────────────────────────────────────────────

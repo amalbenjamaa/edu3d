@@ -5,6 +5,7 @@ use App\Http\Controllers\Api\ClassroomController;
 use App\Http\Controllers\Api\CourseController;
 use App\Http\Controllers\Api\EnrollmentController;
 use App\Http\Controllers\Api\SlideController;
+use App\Http\Controllers\Api\MessageController;
 use Illuminate\Support\Facades\Route;
 
 // ─── Routes publiques ─────────────────────────────────────────────────────────
@@ -22,6 +23,21 @@ Route::middleware('auth:sanctum')->group(function () {
     // ── Admin ─────────────────────────────────────────────────────────────
     Route::middleware('role:admin')->prefix('admin')->group(function () {
         Route::get('/users',         fn() => \App\Models\User::all());
+        Route::post('/users', function (\Illuminate\Http\Request $req) {
+            $data = $req->validate([
+                'name'     => ['required', 'string', 'max:255'],
+                'email'    => ['required', 'email', 'unique:users,email'],
+                'password' => ['required', 'string', 'min:8'],
+                'role'     => ['required', 'in:student,teacher,admin'],
+            ]);
+            $user = \App\Models\User::create([
+                'name'     => $data['name'],
+                'email'    => $data['email'],
+                'password' => \Illuminate\Support\Facades\Hash::make($data['password']),
+                'role'     => $data['role'],
+            ]);
+            return response()->json(['user' => $user], 201);
+        });
         Route::put('/users/{user}',  fn(\App\Models\User $user, \Illuminate\Http\Request $req) =>
             $user->update($req->only('role', 'name')) ? response()->json(['user' => $user]) : abort(500)
         );
@@ -43,6 +59,15 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::apiResource('enrollments', EnrollmentController::class)
              ->only(['index', 'store', 'show']);
         Route::put('enrollments/{enrollment}/progress', [EnrollmentController::class, 'updateProgress']);
+
+        // Chat & Users
+        Route::get('users', function(\Illuminate\Http\Request $request) {
+            return response()->json(\App\Models\User::where('id', '!=', $request->user()->id)->get());
+        });
+        Route::get('messages/conversations', [MessageController::class, 'getConversations']);
+        Route::post('messages/conversations', [MessageController::class, 'createConversation']);
+        Route::get('messages/conversations/{id}', [MessageController::class, 'getMessages']);
+        Route::post('messages', [MessageController::class, 'store']);
     });
 
     // ── Écriture : enseignant + admin ─────────────────────────────────────

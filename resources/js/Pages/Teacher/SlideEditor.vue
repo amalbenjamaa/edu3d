@@ -82,11 +82,10 @@
 
             <!-- Viewer 3D -->
             <div class="viewer-area">
-              <ThreeViewer
-                v-if="activeSlide?.object3dUrl"
-                :key="activeSlide.id"
-                :modelUrl="activeSlide.object3dUrl"
-                :autoRotate="true"
+              <FullScene
+                v-if="activeSlide?._raw"
+                :key="'preview-' + activeSlide.id"
+                :slide="activeSlide._raw"
               />
               <div class="viewer-placeholder" v-else>
                 <svg viewBox="0 0 120 120" width="90" height="90" style="opacity:0.2">
@@ -94,7 +93,7 @@
                   <polygon points="60,25 95,82 25,82" fill="rgba(167,139,250,0.1)" stroke="rgba(167,139,250,0.3)" stroke-width="1.5"/>
                   <circle cx="60" cy="55" r="7" fill="rgba(167,139,250,0.3)" stroke="#a78bfa" stroke-width="1.5"/>
                 </svg>
-                <p>{{ activeSlide ? 'Pas de modèle 3D pour cette slide' : 'Sélectionnez une slide' }}</p>
+                <p>Sélectionnez une slide pour la prévisualiser</p>
               </div>
             </div>
 
@@ -179,6 +178,15 @@
                   </div>
                 </div>
 
+                <!-- Info note & Advanced Edit Link for multiple examples -->
+                <div class="advanced-edit-note" v-if="classroomId" style="margin-top: 1rem; padding: 0.8rem; background: rgba(167,139,250,0.06); border: 1px solid rgba(167,139,250,0.15); border-radius: 10px; font-size: 0.76rem; color: rgba(255,255,255,0.7); line-height: 1.45;">
+                  <span style="display: block; font-weight: 600; color: #a78bfa; margin-bottom: 4px;">💡 Objets multiples & Exemples</span>
+                  Pour insérer plusieurs objets (modèles 3D, formes, images) dans une seule slide, utilisez l'éditeur avancé.
+                  <a :href="`/teacher/classrooms/${classroomId}/slides/edit`" target="_blank" style="display: inline-flex; align-items: center; gap: 4px; color: #a78bfa; text-decoration: underline; font-weight: 600; margin-top: 6px; cursor: pointer;">
+                    ⚙️ Ouvrir l'Éditeur Avancé ↗
+                  </a>
+                </div>
+
               </div>
 
               <div class="form-footer">
@@ -226,7 +234,7 @@
 <script setup>
 import { ref, computed, watch } from 'vue'
 import api from '@/services/api.js'
-import ThreeViewer from '@/Components/ThreeViewer.vue'
+import FullScene from '@/Components/three/FullScene.vue'
 
 const props = defineProps({
   show:   { type: Boolean, default: false },
@@ -257,9 +265,9 @@ const demoModels = [
   { name: 'Canard',      icon: '🦆', url: 'https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Models/master/2.0/Duck/glTF-Binary/Duck.glb' },
   { name: 'Casque',      icon: '⛑️', url: 'https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Models/master/2.0/DamagedHelmet/glTF-Binary/DamagedHelmet.glb' },
   { name: 'Bouteille',   icon: '🍶', url: 'https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Models/master/2.0/WaterBottle/glTF-Binary/WaterBottle.glb' },
-  { name: 'Flamant',     icon: '🦩', url: 'https://threejs.org/examples/models/gltf/Flamingo.glb' },
-  { name: 'Cheval',      icon: '🐴', url: 'https://threejs.org/examples/models/gltf/Horse.glb' },
-  { name: 'Robot',       icon: '🤖', url: 'https://threejs.org/examples/models/gltf/RobotExpressive/RobotExpressive.glb' },
+  { name: 'Flamant',     icon: '🦩', url: 'https://raw.githubusercontent.com/mrdoob/three.js/dev/examples/models/gltf/Flamingo.glb' },
+  { name: 'Cheval',      icon: '🐴', url: 'https://raw.githubusercontent.com/mrdoob/three.js/dev/examples/models/gltf/Horse.glb' },
+  { name: 'Robot',       icon: '🤖', url: 'https://raw.githubusercontent.com/mrdoob/three.js/dev/examples/models/gltf/RobotExpressive/RobotExpressive.glb' },
   { name: 'Boîte',       icon: '📦', url: 'https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Models/master/2.0/Box/glTF-Binary/Box.glb' },
 ]
 
@@ -353,14 +361,18 @@ async function loadSlides() {
     classroomId.value = await resolveClassroom()
     if (!classroomId.value) {
       slides.value = []
+      activeSlide.value = null
+      showToast('Créez une classe pour ce cours avant d\'ajouter des slides', 'error')
       return
     }
     const { data } = await api.get(`/classrooms/${classroomId.value}/slides`)
     const list = (data.data ?? data).map(mapSlide)
     slides.value = list.sort((a, b) => (a.position ?? 0) - (b.position ?? 0))
     activeSlide.value = slides.value[0] ?? null
-  } catch {
+  } catch (e) {
     slides.value = []
+    activeSlide.value = null
+    showToast(e.response?.data?.message || 'Impossible de charger les slides', 'error')
   }
 }
 
@@ -372,27 +384,36 @@ async function saveSlide() {
   }
   isLoading.value = true
   try {
+    const camera = activeSlide.value?._raw?.camera ?? {
+      position: [5, 5, 5],
+      target: [0, 0, 0],
+      fov: 60,
+    }
     const payload = {
-      classroom_id: classroomId.value,
       title: form.value.title,
       type: 'mixed',
       content: buildContent(),
-      order: form.value.position ?? slides.value.length + 1,
+      camera,
       duration: 0,
     }
     if (editMode.value) {
       await api.put(`/slides/${editId.value}`, payload)
       showToast('Slide modifiée ✅')
     } else {
-      const { data } = await api.post('/slides', payload)
-      editId.value = data.slide?.id ?? null
+      await api.post('/slides', {
+        ...payload,
+        classroom_id: classroomId.value,
+      })
       showToast('Slide créée ✅')
     }
     closeForm()
     await loadSlides()
     emit('updated')
-  } catch {
-    showToast('Erreur lors de la sauvegarde', 'error')
+  } catch (e) {
+    const msg = e.response?.data?.message
+      || (e.response?.data?.errors ? Object.values(e.response.data.errors).flat().join(' ') : null)
+      || 'Erreur lors de la sauvegarde'
+    showToast(msg, 'error')
   } finally {
     isLoading.value = false
   }

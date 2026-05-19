@@ -49,6 +49,18 @@ function init() {
   window.addEventListener('resize', onResize)
 }
 
+function sanitizeGltfUrl(url) {
+  if (!url) return url
+  let u = url.trim()
+  if (u.includes('github.com/') && u.includes('/blob/')) {
+    u = u.replace('github.com', 'raw.githubusercontent.com').replace('/blob/', '/')
+  }
+  if (u.includes('gitlab.com/') && u.includes('/blob/')) {
+    u = u.replace('/blob/', '/raw/')
+  }
+  return u
+}
+
 function loadModel(url) {
   if (modelRoot) {
     scene.remove(modelRoot)
@@ -57,8 +69,25 @@ function loadModel(url) {
   if (!url) return
 
   const loader = new GLTFLoader()
-  loader.load(url, (gltf) => {
+  loader.load(sanitizeGltfUrl(url), (gltf) => {
     modelRoot = gltf.scene
+    
+    // Auto-centrer et auto-cadrer le modèle dans l'aperçu
+    const box = new THREE.Box3().setFromObject(modelRoot)
+    const center = box.getCenter(new THREE.Vector3())
+    const size = box.getSize(new THREE.Vector3())
+    
+    modelRoot.position.x += (modelRoot.position.x - center.x)
+    modelRoot.position.y += (modelRoot.position.y - center.y) - 0.2 // petit offset vers le bas
+    modelRoot.position.z += (modelRoot.position.z - center.z)
+    
+    // Mettre à l'échelle pour s'adapter à la caméra
+    const maxDim = Math.max(size.x, size.y, size.z)
+    if (maxDim > 0) {
+      const scale = 2.2 / maxDim
+      modelRoot.scale.set(scale, scale, scale)
+    }
+    
     scene.add(modelRoot)
   })
 }

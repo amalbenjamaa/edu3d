@@ -3,6 +3,13 @@
 
     <!-- ── SIDEBAR GAUCHE : liste des classes ── -->
     <aside class="classes-panel">
+      <!-- Admin Back Button -->
+      <div v-if="auth?.user?.role === 'admin'" class="admin-back-btn-wrap" style="padding: 0.8rem; border-bottom: 1px solid rgba(255,255,255,0.06); background: rgba(99,102,241,0.04);">
+        <a href="/admin/dashboard" class="btn-admin-back" style="display: flex; align-items: center; justify-content: center; gap: 6px; padding: 0.55rem 0.9rem; background: linear-gradient(135deg, #6366f1, #4f46e5); border: none; border-radius: 9px; color: #fff; font-family: 'DM Sans', sans-serif; font-size: 0.78rem; font-weight: 600; text-decoration: none; cursor: pointer; text-align: center; width: 100%; transition: all 0.2s; box-shadow: 0 4px 12px rgba(99,102,241,0.2);">
+          ⬅️ Retour Tableau Admin
+        </a>
+      </div>
+
       <div class="panel-header">
         <h2>Mes Classes</h2>
         <span class="badge">{{ classrooms.length }}</span>
@@ -230,7 +237,7 @@
                   <!-- Texte (pour text3d) -->
                   <div class="field-row" v-if="selectedObj.type === 'text3d'">
                     <label>Texte</label>
-                    <input v-model="selectedObj.text" class="editor-input" placeholder="Votre texte 3D" @input="refreshPreview"/>
+                    <textarea v-model="selectedObj.text" class="editor-input" style="min-height: 80px; resize: vertical;" placeholder="Votre texte 3D (Appuyez sur Entrée pour aller à la ligne)" @input="refreshPreview"></textarea>
                   </div>
 
                   <!-- URL (gltf / image) -->

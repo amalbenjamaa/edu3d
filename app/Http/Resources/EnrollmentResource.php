@@ -11,6 +11,7 @@ class EnrollmentResource extends JsonResource
     {
         return [
             'id'           => $this->id,
+            'classroom_id' => $this->classroom_id,
             'status'       => $this->status,
             'progress'     => $this->progress,
             'enrolled_at'  => $this->enrolled_at?->toDateTimeString(),

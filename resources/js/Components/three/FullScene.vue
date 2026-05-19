@@ -6,6 +6,13 @@
 <script setup>
 import { ref, onMounted, onBeforeUnmount, watch } from 'vue'
 import * as THREE from 'three'
+import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js'
+import { FontLoader } from 'three/examples/jsm/loaders/FontLoader.js'
+import { TextGeometry } from 'three/examples/jsm/geometries/TextGeometry.js'
+
+let font = null
+const fontLoader = new FontLoader()
+fontLoader.load('https://threejs.org/examples/fonts/helvetiker_regular.typeface.json', f => font = f)
 
 const props = defineProps({
   slide: { type: Object, required: true },
@@ -161,6 +168,10 @@ function loadObjects() {
 
   const content = props.slide.content ?? []
   content.forEach(obj => {
+    if (obj.type === 'gltf' && obj.url) {
+      loadGltf(obj)
+      return
+    }
     const mesh = buildMesh(obj)
     if (mesh) { mesh.userData.isSlideObj = true; scene?.add(mesh) }
   })
@@ -186,11 +197,27 @@ function buildMesh(obj) {
     case 'box':    geo = new THREE.BoxGeometry(1, 1, 1); break
     case 'sphere': geo = new THREE.SphereGeometry(0.6, 64, 64); break
     case 'plane':  geo = new THREE.PlaneGeometry(2, 2); break
+    case 'cylinder': geo = new THREE.CylinderGeometry(0.5, 0.5, 1.2, 32); break
+    case 'torus': geo = new THREE.TorusGeometry(0.6, 0.2, 16, 48); break
+    case 'cone': geo = new THREE.ConeGeometry(0.6, 1.2, 32); break
     case 'text3d':
-      geo = new THREE.BoxGeometry(Math.max(1, (obj.text?.length ?? 4) * 0.22), 0.45, 0.15)
-      mat.color.set(obj.color ?? '#ffffff')
+      if (font && obj.text) {
+        geo = new TextGeometry(String(obj.text).replace(/\\n/g, '\n'), {
+          font,
+          size: obj.size ?? 0.4,
+          depth: 0.08,
+          curveSegments: 8,
+          bevelEnabled: true,
+          bevelThickness: 0.02,
+          bevelSize: 0.01,
+        })
+        geo.center()
+        mat.color.set(obj.color ?? '#ffffff')
+      } else {
+        geo = new THREE.BoxGeometry(Math.max(1, (obj.text?.length ?? 4) * 0.22), 0.45, 0.15)
+        mat.color.set(obj.color ?? '#ffffff')
+      }
       break
-    case 'gltf':   geo = new THREE.BoxGeometry(1, 1, 1); mat.wireframe = true; break
     case 'image':  geo = new THREE.PlaneGeometry(2, 1.5); break
     default:       geo = new THREE.BoxGeometry(1, 1, 1)
   }
@@ -200,6 +227,37 @@ function buildMesh(obj) {
   mesh.scale.set(...(obj.scale ?? [1,1,1]))
   mesh.castShadow = mesh.receiveShadow = true
   return mesh
+}
+
+function sanitizeGltfUrl(url) {
+  if (!url) return url
+  let u = url.trim()
+  if (u.includes('github.com/')) {
+    u = u.replace('github.com', 'raw.githubusercontent.com').replace('/blob/', '/').replace('/tree/', '/')
+  }
+  if (u.includes('gitlab.com/') && u.includes('/blob/')) {
+    u = u.replace('/blob/', '/raw/')
+  }
+  return u
+}
+
+function loadGltf(obj) {
+  const loader = new GLTFLoader()
+  const sanitizedUrl = sanitizeGltfUrl(obj.url)
+  loader.load(sanitizedUrl, (gltf) => {
+    const model = gltf.scene
+    model.position.set(...(obj.position ?? [0, 0, 0]))
+    model.rotation.set(...(obj.rotation ?? [0, 0, 0]))
+    model.scale.set(...(obj.scale ?? [1, 1, 1]))
+    model.traverse((child) => {
+      if (child.isMesh) {
+        child.castShadow = true
+        child.receiveShadow = true
+      }
+    })
+    model.userData.isSlideObj = true
+    scene?.add(model)
+  })
 }
 
 function dispose() {

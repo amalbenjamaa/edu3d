@@ -49,6 +49,10 @@
             <label>Texte</label>
             <input class="prop-input" v-model="selectedObj.text" @change="refreshScene"/>
           </div>
+          <div class="prop-group" v-if="['gltf', 'image'].includes(selectedObj.type)">
+            <label>URL du modèle ou de l'image</label>
+            <input class="prop-input" v-model="selectedObj.url" placeholder="https://..." @change="refreshScene"/>
+          </div>
           <div class="prop-group">
             <label>Couleur</label>
             <div class="color-row">
@@ -243,6 +247,8 @@ const objectTypes = [
   { type: 'cone',     icon: '🔺', label: 'Cône' },
   { type: 'plane',    icon: '▬',  label: 'Plan' },
   { type: 'text3d',   icon: 'T',  label: 'Texte 3D' },
+  { type: 'gltf',     icon: '🤖', label: 'GLTF 3D' },
+  { type: 'image',    icon: '🖼️', label: 'Image 3D' },
 ]
 
 function getObjIcon(type) {

@@ -6,6 +6,7 @@
 <script setup>
 import { ref, onMounted, onBeforeUnmount, watch } from 'vue'
 import * as THREE from 'three'
+import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js'
 
 const props = defineProps({
   slide: { type: Object, required: true },
@@ -51,6 +52,67 @@ function init() {
   animate()
 }
 
+function sanitizeGltfUrl(url) {
+  if (!url) return url
+  let u = url.trim()
+  if (u.includes('github.com/') && u.includes('/blob/')) {
+    u = u.replace('github.com', 'raw.githubusercontent.com').replace('/blob/', '/')
+  }
+  if (u.includes('gitlab.com/') && u.includes('/blob/')) {
+    u = u.replace('/blob/', '/raw/')
+  }
+  return u
+}
+
+function loadGltf(obj) {
+  const loader = new GLTFLoader()
+  const sanitizedUrl = sanitizeGltfUrl(obj.url)
+  loader.load(sanitizedUrl, (gltf) => {
+    const model = gltf.scene
+    model.position.set(...(obj.position ?? [0, 0, 0]))
+    model.rotation.set(...(obj.rotation ?? [0, 0, 0]))
+    model.scale.set(...(obj.scale ?? [1, 1, 1]))
+    model.traverse((child) => {
+      if (child.isMesh) {
+        child.castShadow = true
+        child.receiveShadow = true
+      }
+    })
+    scene?.add(model)
+  }, undefined, (err) => {
+    // Fallback en cas d'erreur de chargement
+    const geo = new THREE.BoxGeometry(0.8, 0.8, 0.8)
+    const mat = new THREE.MeshStandardMaterial({ color: 0xef4444, wireframe: true })
+    const mesh = new THREE.Mesh(geo, mat)
+    mesh.position.set(...(obj.position ?? [0,0,0]))
+    scene?.add(mesh)
+  })
+}
+
+function loadImagePlane(obj) {
+  new THREE.TextureLoader().load(obj.url, (tex) => {
+    const mat = new THREE.MeshStandardMaterial({
+      map: tex,
+      transparent: (obj.opacity ?? 1) < 1,
+      opacity: obj.opacity ?? 1,
+      side: THREE.DoubleSide
+    })
+    const geo = new THREE.PlaneGeometry(2, 1.5)
+    const mesh = new THREE.Mesh(geo, mat)
+    mesh.position.set(...(obj.position ?? [0,0,0]))
+    mesh.rotation.set(...(obj.rotation ?? [0,0,0]))
+    mesh.scale.set(...(obj.scale ?? [1,1,1]))
+    mesh.castShadow = mesh.receiveShadow = true
+    scene?.add(mesh)
+  }, undefined, (err) => {
+    const geo = new THREE.PlaneGeometry(2, 1.5)
+    const mat = new THREE.MeshStandardMaterial({ color: 0xef4444, wireframe: true })
+    const mesh = new THREE.Mesh(geo, mat)
+    mesh.position.set(...(obj.position ?? [0,0,0]))
+    scene?.add(mesh)
+  })
+}
+
 function loadObjects() {
   const content = props.slide.content ?? []
   if (!content.length) {
@@ -61,6 +123,14 @@ function loadObjects() {
     return
   }
   content.forEach(obj => {
+    if (obj.type === 'gltf' && obj.url) {
+      loadGltf(obj)
+      return
+    }
+    if (obj.type === 'image' && obj.url) {
+      loadImagePlane(obj)
+      return
+    }
     const mesh = buildMesh(obj)
     if (mesh) scene?.add(mesh)
   })

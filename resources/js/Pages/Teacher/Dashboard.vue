@@ -143,7 +143,7 @@
                     <div class="class-mini-icon">🏛️</div>
                     <div>
                       <div class="class-mini-name">{{ cls.name }}</div>
-                      <div class="class-mini-code">Capacité : <strong>{{ cls.capacity }}</strong></div>
+                      <div class="class-mini-code">Code : <strong>{{ cls.invite_code || '---' }}</strong></div>
                     </div>
                   </div>
                 </div>
@@ -193,12 +193,13 @@
           <div class="table-wrap">
             <table class="data-table">
               <thead>
-                <tr><th>Classe</th><th>Cours associé</th><th>Capacité</th><th>Actions</th></tr>
+                <tr><th>Classe</th><th>Cours associé</th><th>Code d'invitation</th><th>Capacité</th><th>Actions</th></tr>
               </thead>
               <tbody>
                 <tr v-for="cls in filteredClassrooms" :key="cls.id">
                   <td><div class="user-cell"><span class="class-dot">🏛️</span> {{ cls.name }}</div></td>
                   <td class="text-muted">{{ cls.course?.title || '—' }}</td>
+                  <td><span class="code-badge" style="background: rgba(99, 102, 241, 0.15); color: #818cf8; font-family: monospace; letter-spacing: 1px; padding: 4px 8px; border-radius: 6px;">{{ cls.invite_code || 'N/A' }}</span></td>
                   <td><span class="code-badge">{{ cls.capacity }} places</span></td>
                   <td>
                     <div class="action-btns">
@@ -398,10 +399,9 @@ const iSlides      = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
 
 const mainNav = [{ id: 'overview', label: 'Vue globale', icon: svgHome }, { id: 'profile', label: 'Mon Profil', icon: svgProfile }]
 const contentNav = computed(() => [
-  { id: 'courses', label: 'Mes cours', icon: svgBook },
+  { id: 'courses',    label: 'Mes cours',   icon: svgBook },
   { id: 'classrooms', label: 'Mes classes', icon: svgClass },
-  { id: 'slides', label: 'Slides 3D', icon: iSlides },
-  { id: 'chat', label: 'Messages', icon: iChat, badge: unreadCount.value || null },
+  { id: 'chat',       label: 'Messages',    icon: iChat, badge: unreadCount.value || null },
 ])
 
 // ── Computed ──────────────────────────────────────────────────────────────────
@@ -416,12 +416,11 @@ const myCourses = computed(() =>
 )
 
 const currentPageTitle = computed(() => ({
-  overview: 'Vue globale',
-  courses: 'Mes Cours',
+  overview:   'Vue globale',
+  courses:    'Mes Cours',
   classrooms: 'Mes Classes',
-  slides: 'Slides 3D',
-  chat: 'Messages',
-  profile: 'Mon Profil',
+  chat:       'Messages',
+  profile:    'Mon Profil',
 })[activeView.value])
 
 const statsCards = computed(() => [

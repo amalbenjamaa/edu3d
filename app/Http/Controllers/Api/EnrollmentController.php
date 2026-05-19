@@ -26,7 +26,7 @@ class EnrollmentController extends Controller
                         ->latest()
                         ->get()
             // Étudiant : ses propres inscriptions
-            : Enrollment::with('classroom.course', 'lastSlide')
+            : Enrollment::with('classroom.course.teacher', 'lastSlide')
                         ->forStudent($user->id)
                         ->latest()
                         ->get();
@@ -38,10 +38,14 @@ class EnrollmentController extends Controller
     public function store(Request $request): JsonResponse
     {
         $data = $request->validate([
-            'classroom_id' => ['required', 'exists:classrooms,id'],
+            'invite_code' => ['required', 'string'],
         ]);
 
-        $classroom = Classroom::findOrFail($data['classroom_id']);
+        $classroom = Classroom::where('invite_code', $data['invite_code'])->first();
+        
+        if (!$classroom) {
+            return response()->json(['message' => 'Code de classe invalide.'], 404);
+        }
         Gate::authorize('enroll', $classroom);
 
         // Vérifier qu'il n'est pas déjà inscrit
